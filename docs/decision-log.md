@@ -55,3 +55,23 @@ Short entries: what happened, what was tried, what was chosen and why. Newest at
 - The photo test failed: the function said the uploaded avatar did not exist.
 - `@firebase/rules-unit-testing` uploads to `gs://demo-splitit` by default, while the Admin SDK in the functions emulator (and the app's config) uses `demo-splitit.appspot.com`.
 - Chose to name the app's bucket explicitly in every test (`BUCKET` in `tests/rules/world.ts`), so tests and app use the same bucket.
+
+## Phase 2
+
+### 9. Logging out bounced people to the sign-in page
+
+- Checked in the browser: Log out from Settings landed on `/auth?next=/app/settings` instead of the landing page.
+- Cause: `signOut()` fires the auth listener at once, `<RequireAuth>` re-renders first and redirects to sign-in (as it should for an expired session), and our `navigate('/')` came too late.
+- Chose to navigate away from `/app` first and sign out second. The guard keeps its behaviour for real session loss; a deliberate log-out no longer looks like one.
+
+### 10. Creating `users/{uid}` on first sign-in without a race
+
+- Firebase reports the new user (and the app creates the profile) inside `createUserWithEmailAndPassword`, before `updateProfile()` can set the typed name. Reading the name from the `User` object would have saved a fallback such as the email prefix ("dami") instead of "Dami Ade". This was designed around up front, not observed as a bug; the browser check confirmed the typed name is stored.
+- The sign-up form now records the typed name just before creating the account, and profile creation prefers it. Creation runs in a transaction that writes only when the document is missing, because the rules allow `create` but not overwriting, and a double render or two tabs could otherwise collide.
+- `email` and `photoURL` are read from the ID token, not the `User` object, because those are what the rules compare against.
+
+### 11. Google redirect sign-in on the deployed site (not testable on the emulator)
+
+- On phones we use `signInWithRedirect`. Browsers that block third-party storage (Safari, and Chrome's phase-out) break the redirect flow when the app's domain differs from `authDomain` (`<project>.firebaseapp.com`); the emulator does not reproduce this.
+- Options for deploy time: keep the popup everywhere, serve the auth helper from the Vercel domain (a rewrite of `/__/auth/*`), or set `authDomain` to the Vercel domain.
+- For now: popup on desktop, redirect on touch screens and when a popup is blocked. Revisit in Phase 8 with the real Vercel domain, together with adding it to Firebase Auth's authorised domains.

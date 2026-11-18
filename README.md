@@ -2,7 +2,7 @@
 
 A shared expense splitter: groups, expenses, balances and settle-up, built on Firebase.
 
-> **Status: Phase 1 (security rules, rules tests, money limits, `updateProfile`).** The app itself arrives in Phase 2.
+> **Status: Phase 2 (sign-in, app shell, routes).** Groups arrive in Phase 3.
 
 ## What runs where
 
@@ -44,6 +44,17 @@ pnpm dev
 The Emulator UI is at http://127.0.0.1:4000.
 
 > PowerShell tip: quote comma lists passed to the Firebase CLI, for example `firebase emulators:start --only "firestore,storage"`. Without quotes, PowerShell turns `firestore,storage` into an array.
+
+## Sign-in and routes
+
+- Email and password, plus Google. Google opens a popup on desktop and a full-page redirect on touch screens (or when the popup is blocked). With the emulators, Google sign-in shows the Auth emulator's fake account picker.
+- On first sign-in the app creates `users/{uid}` itself. The rules check that the email and photo match the sign-in.
+- Routes: `/` landing, `/auth`, `/app` (dashboard), `/app/groups`, `/app/groups/:id`, `/app/groups/:id/settle`, `/app/activity`, `/app/settings`, `/join/:token`. Everything under `/app` and `/join` needs sign-in. A signed-out visitor is sent to `/auth?next=…` and comes back to the same page afterwards. `next` only accepts paths inside the app, so it can't send anyone to another site.
+- A group you are not in, and a group that doesn't exist, both show "You're not in this group." Firestore answers `permission-denied` in both cases, so the app can't tell them apart either.
+
+### Before deploying: authorised domains
+
+Google sign-in only works on domains listed in Firebase. When the Vercel site exists (Phase 8), add its domain in the Firebase console: **Authentication → Settings → Authorized domains → Add domain** (for example `splitit.vercel.app`). See decision log entry 11 for the redirect flow on Safari.
 
 ## Tests
 
