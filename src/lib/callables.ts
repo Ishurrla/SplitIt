@@ -7,6 +7,8 @@ import type {
   CreateInviteResult,
   InvitePreviewResult,
   LeaveGroupResult,
+  SaveExpenseInput,
+  SaveExpenseResult,
   UpdateGroupInput,
 } from '../../functions/src/shared/schemas'
 import { functions } from './firebase'
@@ -23,6 +25,8 @@ interface Callables {
   acceptInvite: [{ token: string }, AcceptInviteResult]
   leaveGroup: [{ groupId: string }, LeaveGroupResult]
   removeMember: [{ groupId: string; uid: string }, { ok: true }]
+  saveExpense: [SaveExpenseInput, SaveExpenseResult]
+  deleteExpense: [{ groupId: string; expenseId: string }, { ok: true }]
 }
 
 function callable<K extends keyof Callables>(name: K) {
@@ -37,6 +41,8 @@ export const invitePreview = callable('invitePreview')
 export const acceptInvite = callable('acceptInvite')
 export const leaveGroup = callable('leaveGroup')
 export const removeMember = callable('removeMember')
+export const saveExpense = callable('saveExpense')
+export const deleteExpense = callable('deleteExpense')
 
 /**
  * The message to show for a failed call. Our functions already write plain sentences

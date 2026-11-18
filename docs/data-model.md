@@ -28,11 +28,12 @@ erDiagram
     string name
     string cover "beach flat dinner trip plain"
     string coverPath "covers/{gid}/... or null"
-    string currency "locked after first expense"
+    string currency "fixed when the group is created"
     string createdBy FK "users.uid"
     array memberIds "uid list, for queries and rules"
     map balances "uid to integer minor units, sums to 0"
     map pastMembers "uid to name, for people who left"
+    int expenseCount "kept by saveExpense and deleteExpense"
     timestamp createdAt
   }
 
@@ -132,6 +133,8 @@ Signed-out visitors can read nothing in Firestore.
 - **Each rule check costs at most one document read**, well under the limit of 10 document accesses per request.
 
 - **Leaving keeps the past readable.** You can leave (or be removed) only with a zero balance. Your member document is deleted, which ends your access, and your name moves to `pastMembers` on the group so old expenses can still say who paid. If the owner leaves, the longest-standing member becomes owner; if the last member leaves, the group, its invites and its files are deleted.
+- **Expenses involving someone who left are frozen.** Leaving needs a zero balance, so their old expenses stay correct, but editing or deleting one would move a balance that no longer exists. `saveExpense` and `deleteExpense` refuse, and the ledger shows "Bayo (left)" and says why.
+- **The currency never changes.** The brief says it locks after the first expense; there is no reason to change it before then either, so no function can change it at all.
 - **A group has at most 50 members** (`MAX_MEMBERS`), which keeps `memberIds` and `balances` small.
 
 ## Changes from the prototype's Data model page

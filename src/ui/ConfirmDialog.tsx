@@ -6,6 +6,7 @@ interface ConfirmDialogProps {
   title: string
   description: ReactNode
   confirmLabel: string
+  cancelLabel?: string
   danger?: boolean
   /** Runs the action. Return an error message to show it and keep the dialog open. */
   onConfirm: () => Promise<string | null>
@@ -17,6 +18,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
+  cancelLabel = 'Cancel',
   danger,
   onConfirm,
   onClose,
@@ -41,7 +43,7 @@ export function ConfirmDialog({
       </p>
       <div className="mt-4 flex items-center justify-end gap-2.5">
         <Button variant="link" onClick={onClose}>
-          Cancel
+          {cancelLabel}
         </Button>
         <Button
           variant={danger ? 'danger' : 'primary'}

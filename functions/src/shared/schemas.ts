@@ -3,7 +3,7 @@
 // folder is uploaded when functions deploy; the client imports them from here.
 // Keep this file free of Node or browser APIs.
 import { z } from 'zod'
-import { CURRENCY_CODES } from '../lib/money.js'
+import { CURRENCY_CODES, MAX_AMOUNT_MINOR } from '../lib/money.js'
 
 export const COVERS = ['beach', 'flat', 'dinner', 'trip', 'plain'] as const
 export type CoverName = (typeof COVERS)[number]
@@ -67,11 +67,79 @@ export const inviteTokenInput = z.strictObject({ token: id })
 export const groupIdInput = z.strictObject({ groupId: id })
 export const removeMemberInput = z.strictObject({ groupId: id, uid: id })
 
+// ---------- expenses ----------
+
+/** A Firestore auto-id: the client makes one up front so a receipt can be uploaded before saving. */
+export const expenseId = z
+  .string()
+  .regex(/^[A-Za-z0-9]{20}$/, 'That expense id is not one SplitIt made.')
+
+export const expenseTitle = z
+  .string()
+  .trim()
+  .min(1, 'Give it a short title, like “Dinner at Yellow Chilli”.')
+  .max(80, 'Use 80 characters or fewer.')
+  .regex(/^[^\p{Cc}]*$/u, 'Remove line breaks and control characters.')
+
+/** Integer minor units, above zero, within MAX_AMOUNT_MINOR. Never a float. */
+export const amountMinor = z
+  .number({ message: 'Enter an amount.' })
+  .int('Amounts are whole numbers of kobo, cents or yen.')
+  .positive('Enter an amount above zero.')
+  .max(MAX_AMOUNT_MINOR, 'That amount is too large for one expense.')
+
+export const saveExpenseInput = z
+  .strictObject({
+    groupId: id,
+    /** New id for a new expense, or the id of the expense being edited. */
+    expenseId,
+    title: expenseTitle,
+    amountMinor,
+    paidBy: id,
+    /** uid -> share in minor units. Everyone listed owes a share above zero. */
+    splits: z.record(id, amountMinor),
+    /** receipts/{groupId}/{expenseId}/{file}, or null for no receipt. */
+    receiptPath: z.string().max(300).nullable(),
+  })
+  .superRefine((d, ctx) => {
+    const people = Object.keys(d.splits).length
+    if (people === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['splits'],
+        message: 'Tick at least one person to split with.',
+      })
+      return
+    }
+    if (people > MAX_MEMBERS) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['splits'],
+        message: `A split can include at most ${MAX_MEMBERS} people.`,
+      })
+      return
+    }
+    const sum = Object.values(d.splits).reduce((a, b) => a + b, 0)
+    if (sum !== d.amountMinor) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['splits'],
+        message:
+          sum < d.amountMinor
+            ? 'Some of the amount is still unassigned. Custom amounts must add up to the total.'
+            : 'Custom amounts are over the total. They must add up to it exactly.',
+      })
+    }
+  })
+
+export const deleteExpenseInput = z.strictObject({ groupId: id, expenseId })
+
 // ---------- inputs as the client sends them ----------
 
 export type CreateGroupInput = z.input<typeof createGroupInput>
 export type UpdateGroupInput = z.input<typeof updateGroupInput>
 export type CreateInviteInput = z.input<typeof createInviteInput>
+export type SaveExpenseInput = z.input<typeof saveExpenseInput>
 
 // ---------- results ----------
 
@@ -96,6 +164,10 @@ export interface InvitePreviewResult {
 export interface AcceptInviteResult {
   groupId: string
   alreadyMember: boolean
+}
+export interface SaveExpenseResult {
+  expenseId: string
+  created: boolean
 }
 export interface LeaveGroupResult {
   /** True when you were the last member and the group was deleted. */

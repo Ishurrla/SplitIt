@@ -24,7 +24,8 @@ export function GroupCard({ group, me }: { group: Group; me: string }) {
       <span className="flex flex-col gap-1 px-4 pt-3.5 pb-4">
         <span className="font-display text-[1.45rem] leading-[1.2]">{group.name}</span>
         <span className="text-[.88rem] text-muted">
-          {countLabel(group.memberIds.length, 'member')} · {group.currency}
+          {countLabel(group.memberIds.length, 'member')} ·{' '}
+          {countLabel(group.expenseCount ?? 0, 'expense')} · {group.currency}
         </span>
         <span className="mt-2.5 flex items-center justify-between gap-2">
           {members.data ? <AvatarStack members={members.data} /> : <span className="h-6" />}

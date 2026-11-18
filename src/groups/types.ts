@@ -17,6 +17,8 @@ export interface Group {
   balances: Record<string, number>
   /** People who left or were removed, so old expenses can still show who paid. */
   pastMembers: Record<string, { displayName: string }>
+  /** Missing on groups made before Phase 4 (treated as 0). */
+  expenseCount?: number
   createdAt: Timestamp | null
 }
 

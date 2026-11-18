@@ -17,11 +17,12 @@ erDiagram
     string name
     string cover "beach flat dinner trip plain"
     string coverPath "covers/{gid}/... or null"
-    string currency "locked after first expense"
+    string currency "fixed when the group is created"
     string createdBy FK "users.uid"
     array memberIds "uid list, for queries and rules"
     map balances "uid to integer minor units, sums to 0"
     map pastMembers "uid to name, for people who left"
+    int expenseCount "kept by saveExpense and deleteExpense"
     timestamp createdAt
   }
 

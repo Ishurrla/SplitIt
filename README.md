@@ -2,7 +2,7 @@
 
 A shared expense splitter: groups, expenses, balances and settle-up, built on Firebase.
 
-> **Status: Phase 3 (groups, invites, join flow).** Expenses arrive in Phase 4.
+> **Status: Phase 4 (expenses).** Settle-up and payments arrive in Phase 5.
 
 ## What runs where
 
@@ -64,13 +64,21 @@ Google sign-in only works on domains listed in Firebase. When the Vercel site ex
 - **Leave or remove** someone only when their balance is zero. Their name stays on old expenses. The last member leaving deletes the group.
 - A group has at most 50 members.
 
+## Expenses
+
+- **Add or edit** with a title, an amount, who paid, and who it was for, split equally or in custom amounts that must add up to the total. In an equal split that doesn't divide evenly, the odd kobo (or cent, or yen) goes to the first names in the list, so the shares always add up to the total.
+- **Money is parsed from text to whole minor units without floats** (`src/lib/money.ts`): `1,250.50` is 125050 kobo, yen takes no decimals, and wrong grouping, too many decimals, zero and absurd amounts are refused with a sentence that says what to fix.
+- **Only the person who added an expense can edit or delete it.** Others see "Only Ada can edit or delete this." Expenses involving someone who has left can't be changed at all.
+- **Receipts** are resized in the browser to at most 1600px JPEG, uploaded to `receipts/{group}/{expense}/` (members only), and opened from the camera icon in the ledger.
+- **Balances** are kept on the group by `saveExpense` and `deleteExpense`, in the same transaction as the expense.
+
 ## Tests
 
 | Command               | What it proves                                                                                                                                                                                                                                                                       | Needs                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
-| `pnpm test`           | Unit and component tests: money limits and formatting, batch splitting, image checks, the route guard (jsdom), and that the two copies of `money.ts` are identical                                                                                                                   | nothing                                       |
+| `pnpm test`           | Unit and component tests: money parsing, formatting and equal splits, balance arithmetic (with a 500-step random check), image checks, and components in jsdom: the route guard, the money input and the expense form's split totals                                                 | nothing                                       |
 | `pnpm test:rules`     | 126 checks on `firestore.rules` and `storage.rules`. An outsider (B) can't read or write anything in A's group, including members, expenses, payments, activity, invites, receipts and A's profile. Even the owner can't write money data directly. Signed-out visitors get nothing. | Java (starts Firestore and Storage emulators) |
-| `pnpm test:functions` | Every callable, called through the client SDK: `updateProfile`, `createGroup`, `updateGroup`, `createInvite`, `invitePreview`, `acceptInvite`, `leaveGroup`, `removeMember` (input validation, auth, membership, and what each one writes)                                           | Java (starts all emulators)                   |
+| `pnpm test:functions` | Every callable, called through the client SDK: profile, groups, invites, membership, and `saveExpense`/`deleteExpense` (balances rebuilt from raw expenses after every change and compared to the kobo; yen; uneven splits; expenses with people who left; receipts)                 | Java (starts all emulators)                   |
 
 Both emulator suites start and stop the emulators themselves and print a pass/fail table at the end. Don't run them while `pnpm emulators` is already running: the ports clash.
 

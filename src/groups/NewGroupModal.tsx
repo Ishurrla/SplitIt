@@ -115,7 +115,7 @@ export function NewGroupModal({ onClose }: { onClose: () => void }) {
           ))}
         </select>
         <p className="mt-2 text-[.88rem] text-muted">
-          Everyone in the group uses it. It is fixed once the first expense is added.
+          Everyone in the group uses it. It can't be changed later.
         </p>
 
         <div className="mt-[22px] flex items-baseline justify-between border-b-[1.5px] border-solid border-ink pb-1">

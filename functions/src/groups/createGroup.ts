@@ -31,6 +31,7 @@ export const createGroup = onCall<unknown, Promise<CreateGroupResult>>(
         memberIds: [uid],
         balances: { [uid]: 0 },
         pastMembers: {},
+        expenseCount: 0,
         createdAt: FieldValue.serverTimestamp(),
       }
       const member: MemberDoc = {

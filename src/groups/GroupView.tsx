@@ -2,7 +2,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useSignedIn } from '../auth/context'
-import { callableErrorMessage, leaveGroup, removeMember } from '../lib/callables'
+import { ExpenseModal } from '../expenses/ExpenseModal'
+import { Ledger } from '../expenses/Ledger'
+import type { Expense } from '../expenses/types'
+import { callableErrorMessage, deleteExpense, leaveGroup, removeMember } from '../lib/callables'
 import { ACCEPT_ATTR, imageProblem } from '../lib/images'
 import { CURRENCIES, formatMinor } from '../lib/money'
 import { Avatar } from '../ui/Avatar'
@@ -14,17 +17,25 @@ import { AvatarStack } from './AvatarStack'
 import { GroupCover } from './Cover'
 import { InviteModal } from './InviteModal'
 import { membersSentence } from './names'
-import { refreshGroup, useMembers } from './queries'
+import type { People } from './people'
+import { refreshGroup, useExpenses, useMembers } from './queries'
 import type { Group, Member } from './types'
 import { uploadCover } from './uploadCover'
 
-type Dialog = { kind: 'invite' } | { kind: 'leave' } | { kind: 'remove'; member: Member } | null
+type Dialog =
+  | { kind: 'invite' }
+  | { kind: 'leave' }
+  | { kind: 'remove'; member: Member }
+  | { kind: 'expense'; expense?: Expense }
+  | { kind: 'deleteExpense'; expense: Expense }
+  | null
 
-/** One group: cover, name, who is in it, and (from Phase 4) its ledger. */
+/** One group: cover, name, who is in it, and its ledger. */
 export function GroupView({ group }: { group: Group }) {
   const { user } = useSignedIn()
   const me = user.uid
   const members = useMembers(group.id)
+  const expenses = useExpenses(group.id)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const toast = useToast()
@@ -34,6 +45,10 @@ export function GroupView({ group }: { group: Group }) {
 
   const isOwner = members.data?.some((m) => m.uid === me && m.role === 'owner') ?? false
   const mine = group.balances[me] ?? 0
+  const people: People = { me, members: members.data ?? [], pastMembers: group.pastMembers }
+  const openAddExpense = () => {
+    setDialog({ kind: 'expense' })
+  }
 
   async function onCoverChosen(file: File | undefined) {
     if (!file) return
@@ -116,6 +131,9 @@ export function GroupView({ group }: { group: Group }) {
           <Link to={`/app/groups/${group.id}/settle`} className={buttonClass()}>
             Settle up
           </Link>
+          <Button variant="primary" disabled={!members.data} onClick={openAddExpense}>
+            Add expense
+          </Button>
         </div>
       </div>
 
@@ -139,9 +157,44 @@ export function GroupView({ group }: { group: Group }) {
       </p>
 
       <div className="mt-[26px] grid grid-cols-[minmax(0,1fr)_330px] items-start gap-11 @max-[860px]/shell:grid-cols-1 @max-[860px]/shell:gap-[34px]">
-        <div className="rounded-pen border-[1.5px] border-dashed border-muted px-[22px] py-[34px] text-center">
-          <h3 className="mb-1.5 text-2xl">Nothing written down yet</h3>
-          <p className="text-muted">Adding expenses is built in Phase 4.</p>
+        <div>
+          {expenses.isPending || members.isPending ? (
+            <div
+              aria-busy="true"
+              aria-label="Loading expenses"
+              className="h-40 animate-pulse bg-wash"
+            />
+          ) : expenses.isError ? (
+            <div className="rounded-pen border-[1.5px] border-dashed border-muted px-[22px] py-[34px] text-center">
+              <h3 className="mb-1.5 text-2xl">Couldn&apos;t load the expenses</h3>
+              <p className="mb-4 text-muted">Check your connection, then try again.</p>
+              <Button variant="primary" onClick={() => void expenses.refetch()}>
+                Try again
+              </Button>
+            </div>
+          ) : expenses.data.length === 0 ? (
+            <div className="rounded-pen border-[1.5px] border-dashed border-muted px-[22px] py-[34px] text-center">
+              <h3 className="mb-1.5 text-2xl">Nothing written down yet</h3>
+              <p className="mb-4 text-muted">
+                Add the first expense. Everyone in the group sees it the moment you save.
+              </p>
+              <Button variant="primary" disabled={!members.data} onClick={openAddExpense}>
+                Add expense
+              </Button>
+            </div>
+          ) : (
+            <Ledger
+              group={group}
+              expenses={expenses.data}
+              people={people}
+              onEdit={(expense) => {
+                setDialog({ kind: 'expense', expense })
+              }}
+              onDelete={(expense) => {
+                setDialog({ kind: 'deleteExpense', expense })
+              }}
+            />
+          )}
         </div>
 
         <aside className="@max-[860px]/shell:order-first">
@@ -162,7 +215,13 @@ export function GroupView({ group }: { group: Group }) {
               <ul>
                 {members.data.map((m) => (
                   <li key={m.uid} className="flex items-center gap-2 border-b border-rule py-[9px]">
-                    <Avatar seed={m.uid} name={m.displayName} photoUrl={m.photoURL} size="sm" />
+                    <Avatar
+                      seed={m.uid}
+                      name={m.displayName}
+                      photoUrl={m.photoURL}
+                      size="sm"
+                      decorative
+                    />
                     <span className="min-w-0 flex-1 truncate">
                       {m.uid === me ? 'You' : m.displayName}
                       {m.role === 'owner' ? (
@@ -197,6 +256,42 @@ export function GroupView({ group }: { group: Group }) {
           </section>
         </aside>
       </div>
+
+      {dialog?.kind === 'expense' && members.data ? (
+        <ExpenseModal
+          group={group}
+          members={members.data}
+          me={me}
+          expense={dialog.expense}
+          onClose={() => {
+            setDialog(null)
+          }}
+        />
+      ) : null}
+
+      {dialog?.kind === 'deleteExpense' ? (
+        <ConfirmDialog
+          title="Delete this expense?"
+          description={`${dialog.expense.title} · ${formatMinor(dialog.expense.amountMinor, group.currency)}. Everyone's balances change, and the activity log records that you deleted it.`}
+          confirmLabel="Delete expense"
+          cancelLabel="Keep it"
+          danger
+          onClose={() => {
+            setDialog(null)
+          }}
+          onConfirm={async () => {
+            try {
+              await deleteExpense({ groupId: group.id, expenseId: dialog.expense.id })
+            } catch (e) {
+              return callableErrorMessage(e)
+            }
+            setDialog(null)
+            await refreshGroup(queryClient, group.id)
+            toast(`Deleted ${dialog.expense.title}.`)
+            return null
+          }}
+        />
+      ) : null}
 
       {dialog?.kind === 'invite' ? (
         <InviteModal

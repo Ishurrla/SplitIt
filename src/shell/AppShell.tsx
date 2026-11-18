@@ -60,7 +60,7 @@ export function AppShell() {
             ))}
           </nav>
           <div className="mt-auto flex items-center gap-2.5 border-t border-rule px-2.5 pt-3.5 pb-1">
-            <Avatar seed={user.uid} name={name} photoUrl={profile?.photoURL} />
+            <Avatar seed={user.uid} name={name} photoUrl={profile?.photoURL} decorative />
             <span className="min-w-0">
               <b className="block truncate">{name}</b>
               <LogOutButton variant="link" className="text-[.85rem]" />

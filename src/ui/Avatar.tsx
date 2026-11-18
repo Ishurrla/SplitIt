@@ -10,21 +10,24 @@ interface AvatarProps {
   /** A ready-to-use image URL (the Google photo for now; uploaded photos come in Phase 7). */
   photoUrl?: string | null | undefined
   size?: keyof typeof SIZES
+  /** Hide from screen readers when the name is already written right next to it. */
+  decorative?: boolean
 }
 
 /** Round avatar with a pen border: the photo when there is one, otherwise an illustration. */
-export function Avatar({ seed, name, photoUrl, size = 'md' }: AvatarProps) {
+export function Avatar({ seed, name, photoUrl, size = 'md', decorative = false }: AvatarProps) {
   const [failed, setFailed] = useState(false)
   const showPhoto = Boolean(photoUrl) && !failed
   return (
     <span
-      title={name}
+      title={decorative ? undefined : name}
+      aria-hidden={decorative ? true : undefined}
       className={`inline-block shrink-0 overflow-hidden rounded-full border-[1.5px] border-solid border-ink bg-wash align-middle ${SIZES[size]}`}
     >
       {showPhoto ? (
         <img
           src={photoUrl ?? undefined}
-          alt={name}
+          alt={decorative ? '' : name}
           referrerPolicy="no-referrer"
           className="block size-full object-cover"
           onError={() => {
@@ -32,16 +35,22 @@ export function Avatar({ seed, name, photoUrl, size = 'md' }: AvatarProps) {
           }}
         />
       ) : (
-        <Illustration seed={seed} name={name} />
+        <Illustration seed={seed} name={decorative ? null : name} />
       )}
     </span>
   )
 }
 
-function Illustration({ seed, name }: { seed: string; name: string }) {
+function Illustration({ seed, name }: { seed: string; name: string | null }) {
   const a = avatarArtFor(seed)
   return (
-    <svg viewBox="0 0 40 40" role="img" aria-label={name} className="block size-full">
+    <svg
+      viewBox="0 0 40 40"
+      role={name ? 'img' : undefined}
+      aria-label={name ?? undefined}
+      aria-hidden={name ? undefined : true}
+      className="block size-full"
+    >
       <rect width="40" height="40" fill={a.bg} />
       {a.hair === 'afro' ? <circle cx="20" cy="15" r="11.5" fill={a.hairColour} /> : null}
       <path d="M4 41c1-9.5 7-13.5 16-13.5S35 31.5 36 41z" fill={a.top} />

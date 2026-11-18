@@ -101,3 +101,27 @@ Short entries: what happened, what was tried, what was chosen and why. Newest at
 - You asked for shared schemas in Phase 4; the Phase 3 callables (`createGroup`, `createInvite`) already had client forms, so sharing started now.
 - Only `functions/` is uploaded when functions deploy, so the shared file has to live there (`functions/src/shared/schemas.ts`); the client imports it by relative path. It exports plain input types too, so the client never imports zod itself.
 - `money.ts` stays as two identical copies with a test, as the brief asked.
+
+## Phase 4
+
+### 16. Balances move by the difference, and the tests rebuild them from scratch
+
+- `saveExpense` and `deleteExpense` change `groups/{gid}.balances` inside the same transaction as the expense: take the old expense's effect out, put the new one in. A pure `rebalance()` does the arithmetic so it can be unit-tested, and the function refuses to save if the result doesn't sum to zero.
+- The callable tests don't trust that arithmetic: after every create, edit and delete they rebuild the balances from the raw expense documents and compare to the kobo. A property test does 500 random creates, edits and deletes.
+- To check the tests themselves, I broke the function five ways (edit adds instead of replacing, delete forgets the balances, anyone may edit, frozen expenses editable, split members unchecked). Every break was caught. Ten simultaneous saves also land exactly, because each is a transaction.
+
+### 17. Expenses involving someone who left are frozen
+
+- Leaving needs a zero balance, but the person's uid stays on old expenses. Editing or deleting such an expense would give them a balance again after they have gone, with no way for them to settle it.
+- Options: let it happen (and silently break the "zero to leave" promise), recreate their balance, or freeze those expenses.
+- Chose to freeze: both callables refuse with "Bayo has left the group, so this expense can no longer be changed.", and the ledger shows "Bayo (left)" with the same sentence instead of Edit/Delete. If a fix is ever needed, the person can rejoin, which unfreezes it.
+
+### 18. The client picks the expense id so the receipt can go first
+
+- `saveExpense` checks the receipt file exists under `receipts/{gid}/{eid}/`, so the photo must be uploaded before the expense exists. The client makes a Firestore auto-id locally (no write) and uploads there; the function treats an unknown id as "new" and a known id as "edit", with the creator check.
+- Trade-off: if the upload succeeds but the save fails, the photo stays in Storage, because the rules don't let clients delete receipts. It is invisible (no expense points to it) and costs little; a cleanup function could sweep these later. Replacing or removing a receipt, or deleting the expense, deletes the old files server-side.
+
+### 19. A screen reader would have read every name twice
+
+- The first expense-form test failed with "found multiple elements labelled Bayo": the checkbox, and the avatar's SVG next to it, which also had `aria-label="Bayo"`.
+- In lists the name is already written beside the avatar, so the avatar is noise there. Added a `decorative` option that hides it from assistive technology; the avatar stacks, where there is no visible name, keep their labels.

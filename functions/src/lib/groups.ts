@@ -18,6 +18,8 @@ export interface GroupDoc {
   balances: Record<string, number>
   /** Names of people who left or were removed, so old expenses can still say who paid. */
   pastMembers: Record<string, { displayName: string }>
+  /** How many expenses the group has; kept by saveExpense and deleteExpense. */
+  expenseCount: number
   createdAt: FieldValue
 }
 
@@ -36,6 +38,9 @@ export type ActivityKind =
   | 'member.left'
   | 'member.removed'
   | 'invite.created'
+  | 'expense.added'
+  | 'expense.edited'
+  | 'expense.deleted'
 
 export const groupRef = (gid: string) => getFirestore().doc(`groups/${gid}`)
 export const memberRef = (gid: string, uid: string) =>
