@@ -2,7 +2,7 @@
 
 A shared expense splitter: groups, expenses, balances and settle-up, built on Firebase.
 
-> **Status: Phase 2 (sign-in, app shell, routes).** Groups arrive in Phase 3.
+> **Status: Phase 3 (groups, invites, join flow).** Expenses arrive in Phase 4.
 
 ## What runs where
 
@@ -56,13 +56,21 @@ The Emulator UI is at http://127.0.0.1:4000.
 
 Google sign-in only works on domains listed in Firebase. When the Vercel site exists (Phase 8), add its domain in the Firebase console: **Authentication → Settings → Authorized domains → Add domain** (for example `splitit.vercel.app`). See decision log entry 11 for the redirect flow on Safari.
 
+## Groups and invites
+
+- **Create a group** with a name, a currency (fixed once the first expense is added) and an illustrated cover or your own photo. Photos are shrunk in the browser to at most 1600px JPEG before upload.
+- **Invite** with the group's link (reusable for 7 days; the same link is handed out while it has more than a day left) or with a personal invite for one email address (works once, only for that address). SplitIt doesn't send emails yet, so you send the link yourself. Any member can invite; only the owner sees the pending list.
+- **Join** at `/join/:token`. Before joining you see only the group's name and who invited you. The screen also handles expired, used, wrong-email, full and already-a-member links.
+- **Leave or remove** someone only when their balance is zero. Their name stays on old expenses. The last member leaving deletes the group.
+- A group has at most 50 members.
+
 ## Tests
 
 | Command               | What it proves                                                                                                                                                                                                                                                                       | Needs                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
-| `pnpm test`           | Unit tests: money limits, batch splitting, and that the two copies of `money.ts` are identical                                                                                                                                                                                       | nothing                                       |
+| `pnpm test`           | Unit and component tests: money limits and formatting, batch splitting, image checks, the route guard (jsdom), and that the two copies of `money.ts` are identical                                                                                                                   | nothing                                       |
 | `pnpm test:rules`     | 126 checks on `firestore.rules` and `storage.rules`. An outsider (B) can't read or write anything in A's group, including members, expenses, payments, activity, invites, receipts and A's profile. Even the owner can't write money data directly. Signed-out visitors get nothing. | Java (starts Firestore and Storage emulators) |
-| `pnpm test:functions` | The `updateProfile` callable, called through the client SDK: input validation, auth, and copies updated in every group                                                                                                                                                               | Java (starts all emulators)                   |
+| `pnpm test:functions` | Every callable, called through the client SDK: `updateProfile`, `createGroup`, `updateGroup`, `createInvite`, `invitePreview`, `acceptInvite`, `leaveGroup`, `removeMember` (input validation, auth, membership, and what each one writes)                                           | Java (starts all emulators)                   |
 
 Both emulator suites start and stop the emulators themselves and print a pass/fail table at the end. Don't run them while `pnpm emulators` is already running: the ports clash.
 

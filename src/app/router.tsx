@@ -1,16 +1,10 @@
 import { createBrowserRouter } from 'react-router'
 import { AuthPage } from '../pages/AuthPage'
 import { LandingPage } from '../pages/LandingPage'
-import {
-  ActivityPage,
-  DashboardPage,
-  GroupPage,
-  GroupsPage,
-  JoinPage,
-  NotFoundPage,
-  SettingsPage,
-  SettlePage,
-} from '../pages/appPages'
+import { ActivityPage, GroupPage, NotFoundPage, SettingsPage, SettlePage } from '../pages/appPages'
+import { DashboardPage } from '../pages/DashboardPage'
+import { GroupsPage } from '../pages/GroupsPage'
+import { JoinPage } from '../pages/JoinPage'
 import { AppShell } from '../shell/AppShell'
 import { RequireAuth } from './RequireAuth'
 

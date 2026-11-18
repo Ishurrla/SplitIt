@@ -1,22 +1,11 @@
 import { Link, useParams } from 'react-router'
-import { useSignedIn } from '../auth/context'
 import { GroupGate } from '../groups/GroupGate'
+import { GroupView } from '../groups/GroupView'
 import { LogOutButton } from '../shell/LogOutButton'
 import { buttonClass } from '../ui/buttonStyles'
 import { PageStub } from './PageStub'
 
-// Screens reachable in Phase 2. Most are stubs that name the phase that builds them; the group
-// routes are real enough to prove the "not in this group" behaviour against the actual rules.
-
-export function DashboardPage() {
-  const { profile } = useSignedIn()
-  const firstName = profile?.displayName.split(' ')[0] ?? ''
-  return <PageStub eyebrow="Dashboard" title={`Hello, ${firstName}.`} phase={7} />
-}
-
-export function GroupsPage() {
-  return <PageStub title="Groups" phase={3} />
-}
+// Smaller screens. Stubs name the phase that builds them.
 
 export function ActivityPage() {
   return <PageStub title="Activity" phase={6} />
@@ -45,11 +34,7 @@ function useGroupId(): string {
 
 export function GroupPage() {
   const groupId = useGroupId()
-  return (
-    <GroupGate groupId={groupId}>
-      {(group) => <PageStub eyebrow={group.currency} title={group.name} phase={3} />}
-    </GroupGate>
-  )
+  return <GroupGate groupId={groupId}>{(group) => <GroupView group={group} />}</GroupGate>
 }
 
 export function SettlePage() {
@@ -58,17 +43,6 @@ export function SettlePage() {
     <GroupGate groupId={groupId}>
       {(group) => <PageStub eyebrow={group.name} title="Settle up" phase={5} />}
     </GroupGate>
-  )
-}
-
-export function JoinPage() {
-  const { token } = useParams()
-  return (
-    <main className="mx-auto max-w-[1040px] px-[22px] py-14">
-      <PageStub eyebrow="Invitation" title="Join a group" phase={3}>
-        <p className="mt-2 font-mono text-[.85rem] text-muted">Invite token: {token}</p>
-      </PageStub>
-    </main>
   )
 }
 

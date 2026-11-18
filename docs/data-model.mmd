@@ -21,6 +21,7 @@ erDiagram
     string createdBy FK "users.uid"
     array memberIds "uid list, for queries and rules"
     map balances "uid to integer minor units, sums to 0"
+    map pastMembers "uid to name, for people who left"
     timestamp createdAt
   }
 
@@ -69,7 +70,8 @@ erDiagram
     string email "null for link invites"
     string invitedBy FK "users.uid"
     timestamp acceptedAt "email invites only"
-    timestamp expiresAt
+    timestamp expiresAt "7 days after creation"
+    timestamp createdAt
   }
 
   groups ||--|{ members : "has"

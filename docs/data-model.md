@@ -32,6 +32,7 @@ erDiagram
     string createdBy FK "users.uid"
     array memberIds "uid list, for queries and rules"
     map balances "uid to integer minor units, sums to 0"
+    map pastMembers "uid to name, for people who left"
     timestamp createdAt
   }
 
@@ -80,7 +81,8 @@ erDiagram
     string email "null for link invites"
     string invitedBy FK "users.uid"
     timestamp acceptedAt "email invites only"
-    timestamp expiresAt
+    timestamp expiresAt "7 days after creation"
+    timestamp createdAt
   }
 
   groups ||--|{ members : "has"
@@ -103,12 +105,12 @@ erDiagram
 | Collection                    | Who can read                                       | Who can write                                                                                                                                                                                                                                                                                                                                                             |
 | ----------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `users/{uid}`                 | Only you.                                          | You create it on first sign-in (`email` and `photoURL` must match your sign-in; no uploaded photo yet). Afterwards you can change `defaultCurrency` and `weeklyReminders` directly. `displayName` and `photoPath` change only through the `updateProfile` function, because they are copied onto your member documents. `email`, `photoURL` and `createdAt` never change. |
-| `groups/{gid}`                | Members of the group (your uid is in `memberIds`). | Functions only. `balances` changes only inside the expense and payment functions, in the same transaction as the expense or payment.                                                                                                                                                                                                                                      |
+| `groups/{gid}`                | Members of the group (your uid is in `memberIds`). | Functions only: `createGroup`, `updateGroup` (owner: name and cover, never the currency), and the membership functions. `balances` changes only inside the expense and payment functions, in the same transaction as the expense or payment.                                                                                                                              |
 | `groups/{gid}/members/{uid}`  | Members of the same group.                         | Functions only: `createGroup`, `acceptInvite`, `leaveGroup`, `removeMember`, and `updateProfile` for the copied name and photo. A client writing here could promote itself to owner.                                                                                                                                                                                      |
 | `groups/{gid}/expenses/{eid}` | Members of the group.                              | Functions only: `saveExpense`, `deleteExpense`. Each checks that you are a member, the payer and everyone in the split are members, and the splits add up exactly to the amount. Only the person who created an expense can edit or delete it.                                                                                                                            |
 | `groups/{gid}/payments/{pid}` | Members of the group.                              | Functions only: `recordPayment`. A payment can't be more than the payer owes, and it is never edited or deleted.                                                                                                                                                                                                                                                          |
 | `groups/{gid}/activity/{aid}` | Members of the group.                              | Functions only. Written in the same transaction as the change it describes.                                                                                                                                                                                                                                                                                               |
-| `invites/{token}`             | The group's owner, to list pending invites.        | Functions only: `createInvite`, `acceptInvite`. People opening a link never read this collection; the join screen calls `invitePreview(token)`, which returns only the group name and the inviter's name.                                                                                                                                                                 |
+| `invites/{token}`             | The group's owner, to list pending invites.        | Functions only: `createInvite` (any member), `acceptInvite`. People opening a link never read this collection; the join screen calls `invitePreview(token)`, which returns only the group name, the inviter's name and whether the invite works for you.                                                                                                                  |
 | Anything else                 | Nobody.                                            | Nobody (default deny).                                                                                                                                                                                                                                                                                                                                                    |
 
 Signed-out visitors can read nothing in Firestore.
@@ -128,6 +130,9 @@ Signed-out visitors can read nothing in Firestore.
 - **Names and photos are copied onto `members`.** That way the group screens never read other people's `users` documents, and email addresses stay private. When you change your name or photo, the `updateProfile` function updates your profile and the copy in each group you are in.
 - **Splits are a map inside the expense** (`{ uid: amountMinor }`), so there is no separate splits collection. `splitUserIds` repeats the map's keys so expenses can be queried by person.
 - **Each rule check costs at most one document read**, well under the limit of 10 document accesses per request.
+
+- **Leaving keeps the past readable.** You can leave (or be removed) only with a zero balance. Your member document is deleted, which ends your access, and your name moves to `pastMembers` on the group so old expenses can still say who paid. If the owner leaves, the longest-standing member becomes owner; if the last member leaves, the group, its invites and its files are deleted.
+- **A group has at most 50 members** (`MAX_MEMBERS`), which keeps `memberIds` and `balances` small.
 
 ## Changes from the prototype's Data model page
 

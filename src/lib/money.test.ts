@@ -4,6 +4,7 @@ import {
   CURRENCY_CODES,
   MAX_AMOUNT_MINOR,
   amountProblem,
+  formatMinor,
   isCurrencyCode,
   isValidAmountMinor,
 } from './money'
@@ -58,6 +59,38 @@ describe('amountProblem', () => {
   })
 
   it('isValidAmountMinor agrees', () => {
+    expect(isValidAmountMinor(500)).toBe(true)
+  })
+})
+
+describe('formatMinor', () => {
+  it('drops .00 and groups thousands, like the prototype', () => {
+    expect(formatMinor(3_565_000, 'NGN')).toBe('₦35,650')
+    expect(formatMinor(22_260_000, 'NGN')).toBe('₦222,600')
+  })
+
+  it('keeps a non-zero fraction with both digits', () => {
+    expect(formatMinor(3_565_050, 'NGN')).toBe('₦35,650.50')
+    expect(formatMinor(5, 'USD')).toBe('$0.05')
+    expect(formatMinor(125_050, 'GBP')).toBe('£1,250.50')
+  })
+
+  it('has no decimals for yen', () => {
+    expect(formatMinor(1_234_567, 'JPY')).toBe('¥1,234,567')
+  })
+
+  it('handles zero and negatives', () => {
+    expect(formatMinor(0, 'EUR')).toBe('€0')
+    expect(formatMinor(-1_050, 'GHS')).toBe('-GH₵10.50')
+  })
+
+  it('refuses non-integers', () => {
+    expect(() => formatMinor(10.5, 'NGN')).toThrow(RangeError)
+  })
+})
+
+describe('isValidAmountMinor', () => {
+  it('agrees with amountProblem', () => {
     expect(isValidAmountMinor(500)).toBe(true)
     expect(isValidAmountMinor(0)).toBe(false)
   })

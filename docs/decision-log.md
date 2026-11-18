@@ -75,3 +75,29 @@ Short entries: what happened, what was tried, what was chosen and why. Newest at
 - On phones we use `signInWithRedirect`. Browsers that block third-party storage (Safari, and Chrome's phase-out) break the redirect flow when the app's domain differs from `authDomain` (`<project>.firebaseapp.com`); the emulator does not reproduce this.
 - Options for deploy time: keep the popup everywhere, serve the auth helper from the Vercel domain (a rewrite of `/__/auth/*`), or set `authDomain` to the Vercel domain.
 - For now: popup on desktop, redirect on touch screens and when a popup is blocked. Revisit in Phase 8 with the real Vercel domain, together with adding it to Firebase Auth's authorised domains.
+
+## Phase 3
+
+### 12. Any member can invite, only the owner sees pending invites
+
+- The prototype lets every member invite people; the approved rules (Phase 1) let only the owner read `invites`.
+- Options: loosen the rule so members can read invites, or route creation through the callable and keep the rule.
+- Chose the second. `createInvite` checks membership and returns the link to whoever asked; the pending list in the invite dialog is shown to the owner only. The rules tests stay as approved, and tokens of other people's email invites are never shown to plain members.
+
+### 13. An email invite is protected by its token, not by the email check
+
+- Email invites only work for the signed-in user whose email matches. But Firebase lets anyone create an email/password account for any address without proving they own it, so the email match alone proves little.
+- Options: require verified emails (adds a verification flow), or rely on the token.
+- Chose: the token (128 random bits, shown only to the inviter) is the secret; the email check is an extra filter. Errors mask the address (`a•••@example.com`) so a wrong-email screen can't be used to harvest who was invited. If the reviewer wants more, requiring `email_verified` for email invites is a small change in `acceptInvite`.
+
+### 14. Leaving a group without breaking its history
+
+- Removing someone deletes their member document (that is what ends their access, through `isMember()` in the rules). But their uid stays on old expenses, and those need a name.
+- Chose: leaving or removal requires a zero balance, and the name moves to `pastMembers` on the group. An owner leaving hands ownership to the longest-standing member; the last member leaving deletes the group, its invites and its files.
+- Not in the prototype, so kept small: no ownership transfer screen and no "kick with a balance".
+
+### 15. Shared zod schemas live under `functions/`, from this phase
+
+- You asked for shared schemas in Phase 4; the Phase 3 callables (`createGroup`, `createInvite`) already had client forms, so sharing started now.
+- Only `functions/` is uploaded when functions deploy, so the shared file has to live there (`functions/src/shared/schemas.ts`); the client imports it by relative path. It exports plain input types too, so the client never imports zod itself.
+- `money.ts` stays as two identical copies with a test, as the brief asked.

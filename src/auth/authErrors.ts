@@ -44,7 +44,7 @@ export function signInFormProblem(
   if (mode === 'signup' && !form.name?.trim()) return 'Add your name so friends recognise you.'
   if (mode === 'signup' && (form.name?.trim().length ?? 0) > 60)
     return 'Use 60 characters or fewer for your name.'
-  if (!/^\S+@\S+\.\S+$/.test(form.email.trim()))
+  if (!/^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(form.email.trim()))
     return 'That email looks incomplete. Check the @ and the dot.'
   if (form.password.length < 8) return 'Use at least 8 characters for the password.'
   return null

@@ -43,3 +43,22 @@ export function amountProblem(value: unknown): AmountProblem | null {
 export function isValidAmountMinor(value: unknown): value is number {
   return amountProblem(value) === null
 }
+
+/**
+ * Formats minor units for display: 3565000 NGN -> "₦35,650", 3565050 -> "₦35,650.50",
+ * 450 JPY -> "¥450". Pure integer arithmetic, no floats, and the same output in every locale.
+ * Negative amounts get a leading minus; screens that show debts in brackets pass the absolute value.
+ */
+export function formatMinor(amountMinor: number, currency: CurrencyCode): string {
+  if (!Number.isSafeInteger(amountMinor))
+    throw new RangeError('Money must be a whole number of minor units')
+  const { symbol, exponent } = CURRENCIES[currency]
+  const sign = amountMinor < 0 ? '-' : ''
+  const abs = Math.abs(amountMinor)
+  const unit = 10 ** exponent
+  const whole = Math.trunc(abs / unit)
+  const fraction = abs % unit
+  const grouped = String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  const decimals = fraction === 0 ? '' : `.${String(fraction).padStart(exponent, '0')}`
+  return `${sign}${symbol}${grouped}${decimals}`
+}
