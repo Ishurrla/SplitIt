@@ -3,6 +3,8 @@ import { collection, getDocs, orderBy, query, where, type Timestamp } from 'fire
 import { getDownloadURL, ref } from 'firebase/storage'
 import { db, storage } from '../lib/firebase'
 import type { Expense } from '../expenses/types'
+import { settleUp } from '../lib/callables'
+import type { Payment } from '../payments/types'
 import type { Group, Member } from './types'
 
 export const keys = {
@@ -11,6 +13,8 @@ export const keys = {
   invites: (groupId: string) => ['invites', groupId] as const,
   storageUrl: (path: string) => ['storageUrl', path] as const,
   expenses: (groupId: string) => ['expenses', groupId] as const,
+  payments: (groupId: string) => ['payments', groupId] as const,
+  settle: (groupId: string) => ['settle', groupId] as const,
 }
 
 /** Groups I'm in, newest first. The query matches the rule on groups (memberIds contains me). */
@@ -99,6 +103,24 @@ export function useExpenses(groupId: string) {
   })
 }
 
+/** A group's payments, newest first. Members only. */
+export function usePayments(groupId: string) {
+  return useQuery({
+    queryKey: keys.payments(groupId),
+    queryFn: async (): Promise<Payment[]> => {
+      const snap = await getDocs(
+        query(collection(db, 'groups', groupId, 'payments'), orderBy('createdAt', 'desc')),
+      )
+      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Payment, 'id'>) }))
+    },
+  })
+}
+
+/** The settle-up plan, worked out by the settleUp function. The browser never computes it. */
+export function useSettlePlan(groupId: string) {
+  return useQuery({ queryKey: keys.settle(groupId), queryFn: () => settleUp({ groupId }) })
+}
+
 /** After any change to a group: refetch the group, its members, and my group list. */
 export async function refreshGroup(client: QueryClient, groupId: string) {
   await Promise.all([
@@ -106,6 +128,8 @@ export async function refreshGroup(client: QueryClient, groupId: string) {
     client.invalidateQueries({ queryKey: keys.members(groupId) }),
     client.invalidateQueries({ queryKey: keys.invites(groupId) }),
     client.invalidateQueries({ queryKey: keys.expenses(groupId) }),
+    client.invalidateQueries({ queryKey: keys.payments(groupId) }),
+    client.invalidateQueries({ queryKey: keys.settle(groupId) }),
     client.invalidateQueries({ queryKey: ['groups'] }),
   ])
 }

@@ -1,10 +1,29 @@
-import { getRedirectResult, onAuthStateChanged } from 'firebase/auth'
+import { getRedirectResult, onAuthStateChanged, signOut } from 'firebase/auth'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { useEffect, useState, type ReactNode } from 'react'
 import { auth, db } from '../lib/firebase'
 import { authErrorMessage } from './authErrors'
 import { AuthContext, type AuthState } from './context'
 import { ensureUserProfile, type UserProfile } from './profile'
+
+// The saved sign-in points at an account that no longer works (deleted, disabled, or wiped from the
+// emulator). Retrying can never help, so the session is dropped and the person signs in again.
+const SESSION_GONE = new Set([
+  'auth/user-token-expired',
+  'auth/user-not-found',
+  'auth/user-disabled',
+  'auth/invalid-user-token',
+  'auth/invalid-refresh-token', // what the Auth emulator returns once the account is gone
+])
+
+function isSessionGone(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    SESSION_GONE.has(String(error.code))
+  )
+}
 
 /**
  * Knows who is signed in, makes sure their users/{uid} document exists, and keeps that
@@ -57,8 +76,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             },
           )
         })
-        .catch(() => {
+        .catch((error: unknown) => {
           if (cancelled) return
+          if (isSessionGone(error)) {
+            void signOut(auth) // onAuthStateChanged then reports signed out
+            return
+          }
           setState({
             status: 'signedIn',
             user,

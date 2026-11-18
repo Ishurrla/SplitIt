@@ -134,12 +134,26 @@ export const saveExpenseInput = z
 
 export const deleteExpenseInput = z.strictObject({ groupId: id, expenseId })
 
+// ---------- payments ----------
+
+export const recordPaymentInput = z
+  .strictObject({
+    groupId: id,
+    /** Who paid. */
+    from: id,
+    /** Who received it. */
+    to: id,
+    amountMinor,
+  })
+  .refine((d) => d.from !== d.to, { message: 'Someone cannot pay themselves.', path: ['to'] })
+
 // ---------- inputs as the client sends them ----------
 
 export type CreateGroupInput = z.input<typeof createGroupInput>
 export type UpdateGroupInput = z.input<typeof updateGroupInput>
 export type CreateInviteInput = z.input<typeof createInviteInput>
 export type SaveExpenseInput = z.input<typeof saveExpenseInput>
+export type RecordPaymentInput = z.input<typeof recordPaymentInput>
 
 // ---------- results ----------
 
@@ -168,6 +182,28 @@ export interface AcceptInviteResult {
 export interface SaveExpenseResult {
   expenseId: string
   created: boolean
+}
+/** One payment in a settle-up plan. */
+export interface Transfer {
+  from: string
+  to: string
+  amountMinor: number
+}
+export interface SettleUpResult {
+  currency: string
+  /** Current members' balances the plan was worked out from. */
+  balances: Record<string, number>
+  transfers: Transfer[]
+}
+export interface RecordPaymentResult {
+  paymentId: string
+}
+export interface RecomputeBalancesResult {
+  balances: Record<string, number>
+  /** True when the stored balances differed and were corrected. */
+  changed: boolean
+  expenses: number
+  payments: number
 }
 export interface LeaveGroupResult {
   /** True when you were the last member and the group was deleted. */

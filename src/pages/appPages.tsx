@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router'
 import { GroupGate } from '../groups/GroupGate'
 import { GroupView } from '../groups/GroupView'
+import { SettleView } from '../payments/SettleView'
 import { LogOutButton } from '../shell/LogOutButton'
 import { buttonClass } from '../ui/buttonStyles'
 import { PageStub } from './PageStub'
@@ -39,11 +40,7 @@ export function GroupPage() {
 
 export function SettlePage() {
   const groupId = useGroupId()
-  return (
-    <GroupGate groupId={groupId}>
-      {(group) => <PageStub eyebrow={group.name} title="Settle up" phase={5} />}
-    </GroupGate>
-  )
+  return <GroupGate groupId={groupId}>{(group) => <SettleView group={group} />}</GroupGate>
 }
 
 export function NotFoundPage() {

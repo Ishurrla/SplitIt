@@ -3,8 +3,10 @@ import { splitEqually } from './money.js'
 import {
   applyEffect,
   expenseEffect,
+  paymentEffect,
   peopleIn,
   rebalance,
+  rebuild,
   total,
   type ExpenseMoney,
 } from './balances.js'
@@ -96,6 +98,40 @@ describe('rebalance', () => {
       ...zero,
     })
     expect(balances).toEqual(rebuilt)
+  })
+})
+
+describe('paymentEffect and rebuild', () => {
+  it('a payment moves the payer up and the receiver down by the same amount', () => {
+    expect(paymentEffect({ from: 'b', to: 'a', amountMinor: 3_333 })).toEqual({
+      b: 3_333,
+      a: -3_333,
+    })
+  })
+
+  it('rebuilds balances from expenses and payments, listing every current member', () => {
+    const { balances, strays } = rebuild(
+      ['a', 'b', 'c', 'd'],
+      [suya],
+      [{ from: 'b', to: 'a', amountMinor: 3_333 }],
+    )
+    expect(balances).toEqual({ a: 6_666 - 3_333, b: 0, c: -3_333, d: 0 })
+    expect(strays).toEqual({})
+  })
+
+  it('leaves out someone who left at zero, and reports anyone who did not', () => {
+    // b was in an expense, then paid it off and left.
+    const clean = rebuild(
+      ['a', 'c'],
+      [suya],
+      [
+        { from: 'b', to: 'a', amountMinor: 3_333 },
+        { from: 'c', to: 'a', amountMinor: 3_333 },
+      ],
+    )
+    expect(clean).toEqual({ balances: { a: 0, c: 0 }, strays: {} })
+    const broken = rebuild(['a', 'c'], [suya], [])
+    expect(broken.strays).toEqual({ b: -3_333 })
   })
 })
 

@@ -44,10 +44,10 @@ export function LandingPage() {
   return (
     <div>
       <header
-        className={`${wrap} flex h-[68px] items-center justify-between gap-4 border-b border-rule`}
+        className={`${wrap} flex h-17 items-center justify-between gap-4 border-b border-rule`}
       >
         <Brand />
-        <nav aria-label="Sections" className="flex gap-[26px] max-[860px]:hidden">
+        <nav aria-label="Sections" className="flex gap-6.5 max-[860px]:hidden">
           <a href="#features" className="font-semibold hover:underline">
             Features
           </a>
@@ -78,7 +78,7 @@ export function LandingPage() {
       </header>
 
       <section
-        className={`${wrap} grid grid-cols-[1.05fr_1fr] items-center gap-14 pt-16 pb-14 max-[860px]:grid-cols-1 max-[860px]:gap-[34px] max-[860px]:py-[34px]`}
+        className={`${wrap} grid grid-cols-[1.05fr_1fr] items-center gap-14 pt-16 pb-14 max-[860px]:grid-cols-1 max-[860px]:gap-8.5 max-[860px]:py-8.5`}
       >
         <div>
           <h1 className="text-[clamp(2.6rem,6.5vw,4.6rem)] leading-none font-normal">
@@ -102,7 +102,7 @@ export function LandingPage() {
 
         <div
           aria-hidden="true"
-          className="rotate-[1.2deg] rounded-pen border-pen bg-sheet px-[26px] pt-6 pb-[26px] shadow-offset-lg max-[860px]:rotate-0"
+          className="rotate-[1.2deg] rounded-pen border-pen bg-sheet px-6.5 pt-6 pb-6.5 shadow-offset-lg max-[860px]:rotate-0"
         >
           <div className="flex items-center justify-between font-display text-[1.4rem]">
             <span>Lekki weekend</span>
@@ -128,20 +128,20 @@ export function LandingPage() {
               </tr>
             </tbody>
           </table>
-          <p className="mt-[18px] flex flex-wrap items-center gap-3 font-display text-[1.5rem]">
+          <p className="mt-4.5 flex flex-wrap items-center gap-3 font-display text-[1.5rem]">
             You owe Ada <span className="fig-total text-[.8em] text-red">₦35,650</span>
-            <span className="inline-grid size-[30px] place-items-center text-biro [&_path]:animate-draw [&_path]:[stroke-dasharray:40] [&_path]:[stroke-dashoffset:40] [&_path]:[animation-delay:1.8s]">
+            <span className="inline-grid size-7.5 place-items-center text-biro [&_path]:animate-draw [&_path]:[stroke-dasharray:40] [&_path]:[stroke-dashoffset:40] [&_path]:[animation-delay:1.8s]">
               <Icon name="tick" className="size-full" />
             </span>
           </p>
         </div>
       </section>
 
-      <section id="features" className={`${wrap} py-[52px] max-[860px]:py-9`}>
+      <section id="features" className={`${wrap} py-13 max-[860px]:py-9`}>
         <div className={secHead}>
           <h2 className="text-2xl">Built for trips, flats and dinners</h2>
         </div>
-        <div className="mt-[22px] grid grid-cols-3 gap-[34px] max-[860px]:grid-cols-1 max-[860px]:gap-[22px]">
+        <div className="mt-5.5 grid grid-cols-3 gap-8.5 max-[860px]:grid-cols-1 max-[860px]:gap-5.5">
           <Feature title="Create groups">
             A trip, house rent, a standing Friday dinner. Invite people with a link or an email.
           </Feature>
@@ -155,11 +155,11 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section id="how" className={`${wrap} py-[52px] max-[860px]:py-9`}>
+      <section id="how" className={`${wrap} py-13 max-[860px]:py-9`}>
         <div className={secHead}>
           <h2 className="text-2xl">How it works</h2>
         </div>
-        <ol className="mt-[22px] [counter-reset:s]">
+        <ol className="mt-5.5 [counter-reset:s]">
           <Step title="Make a group">Name it and invite the people you share costs with.</Step>
           <Step title="Write down what you spend">
             Say who paid and who it was for. Split equally or set custom amounts.
@@ -170,7 +170,7 @@ export function LandingPage() {
         </ol>
       </section>
 
-      <section id="faq" className={`${wrap} py-[52px] max-[860px]:py-9`}>
+      <section id="faq" className={`${wrap} py-13 max-[860px]:py-9`}>
         <div className={secHead}>
           <h2 className="text-2xl">Questions</h2>
         </div>
@@ -207,7 +207,7 @@ function Feature({ title, children }: { title: string; children: ReactNode }) {
 
 function Step({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <li className="grid grid-cols-[56px_1fr] gap-1.5 border-b border-rule py-[18px] [counter-increment:s] before:font-display before:text-[2.4rem] before:leading-none before:text-biro before:content-[counter(s)]">
+    <li className="grid grid-cols-[56px_1fr] gap-1.5 border-b border-rule py-4.5 [counter-increment:s] before:font-display before:text-[2.4rem] before:leading-none before:text-biro before:content-[counter(s)]">
       <h3 className="text-[1.3rem]">{title}</h3>
       <p className="col-start-2 text-muted">{children}</p>
     </li>

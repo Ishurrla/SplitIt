@@ -76,6 +76,8 @@ describe('<RequireAuth>', () => {
     })
     expect(screen.getByText("Couldn't load your profile.")).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
+    // A way out when retrying can't help.
+    expect(screen.getByRole('button', { name: 'Log out' })).toBeTruthy()
     expect(screen.queryByText('Secret page')).toBeNull()
   })
 

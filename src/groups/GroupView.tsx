@@ -5,7 +5,13 @@ import { useSignedIn } from '../auth/context'
 import { ExpenseModal } from '../expenses/ExpenseModal'
 import { Ledger } from '../expenses/Ledger'
 import type { Expense } from '../expenses/types'
-import { callableErrorMessage, deleteExpense, leaveGroup, removeMember } from '../lib/callables'
+import {
+  callableErrorMessage,
+  deleteExpense,
+  leaveGroup,
+  recomputeBalances,
+  removeMember,
+} from '../lib/callables'
 import { ACCEPT_ATTR, imageProblem } from '../lib/images'
 import { CURRENCIES, formatMinor } from '../lib/money'
 import { Avatar } from '../ui/Avatar'
@@ -13,12 +19,15 @@ import { Button } from '../ui/Button'
 import { buttonClass } from '../ui/buttonStyles'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { useToast } from '../ui/toastContext'
+import { PaymentDialog } from '../payments/PaymentDialog'
+import { ClearEverything, WhereEveryoneStands } from '../payments/Standing'
+import { transferKey, type Transfer } from '../payments/types'
 import { AvatarStack } from './AvatarStack'
 import { GroupCover } from './Cover'
 import { InviteModal } from './InviteModal'
-import { membersSentence } from './names'
-import type { People } from './people'
-import { refreshGroup, useExpenses, useMembers } from './queries'
+import { countLabel, membersSentence } from './names'
+import { personName, type People } from './people'
+import { refreshGroup, useExpenses, useMembers, usePayments, useSettlePlan } from './queries'
 import type { Group, Member } from './types'
 import { uploadCover } from './uploadCover'
 
@@ -28,26 +37,73 @@ type Dialog =
   | { kind: 'remove'; member: Member }
   | { kind: 'expense'; expense?: Expense }
   | { kind: 'deleteExpense'; expense: Expense }
+  | { kind: 'pay'; transfer: Transfer }
   | null
 
-/** One group: cover, name, who is in it, and its ledger. */
+/** How long the strike-through plays before the payment's row is replaced by the new plan. */
+const STRIKE_MS = 750
+
+/** One group: cover, name, who is in it, its ledger, balances and settle-up plan. */
 export function GroupView({ group }: { group: Group }) {
   const { user } = useSignedIn()
   const me = user.uid
   const members = useMembers(group.id)
   const expenses = useExpenses(group.id)
+  const payments = usePayments(group.id)
+  const plan = useSettlePlan(group.id)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const toast = useToast()
   const coverInput = useRef<HTMLInputElement>(null)
   const [dialog, setDialog] = useState<Dialog>(null)
   const [uploading, setUploading] = useState(false)
+  const [struck, setStruck] = useState<ReadonlySet<string>>(new Set())
+  const [checking, setChecking] = useState(false)
 
   const isOwner = members.data?.some((m) => m.uid === me && m.role === 'owner') ?? false
   const mine = group.balances[me] ?? 0
   const people: People = { me, members: members.data ?? [], pastMembers: group.pastMembers }
   const openAddExpense = () => {
     setDialog({ kind: 'expense' })
+  }
+  // "You owe Ada ₦35,650." when one payment clears you, as in the prototype.
+  const myPayments = plan.data?.transfers.filter((t) => t.from === me) ?? []
+  const myOnlyPayment = mine < 0 && myPayments.length === 1 ? myPayments[0] : undefined
+
+  /** After a payment is saved: strike the line through, then fetch the new balances and plan. */
+  function onPaymentRecorded(transfer: Transfer, amountMinor: number) {
+    setDialog(null)
+    const key = transferKey(transfer)
+    setStruck((s) => new Set(s).add(key))
+    const from = personName(transfer.from, people)
+    const to = personName(transfer.to, people)
+    toast(`${from} paid ${to === 'You' ? 'you' : to} ${formatMinor(amountMinor, group.currency)}.`)
+    window.setTimeout(() => {
+      void refreshGroup(queryClient, group.id).then(() => {
+        setStruck((s) => {
+          const next = new Set(s)
+          next.delete(key)
+          return next
+        })
+      })
+    }, STRIKE_MS)
+  }
+
+  async function checkBalances() {
+    setChecking(true)
+    try {
+      const result = await recomputeBalances({ groupId: group.id })
+      await refreshGroup(queryClient, group.id)
+      toast(
+        result.changed
+          ? `Balances were rebuilt from ${countLabel(result.expenses, 'expense')} and ${countLabel(result.payments, 'payment')}.`
+          : `Balances are correct: they match ${countLabel(result.expenses, 'expense')} and ${countLabel(result.payments, 'payment')}.`,
+      )
+    } catch (e) {
+      toast(callableErrorMessage(e))
+    } finally {
+      setChecking(false)
+    }
   }
 
   async function onCoverChosen(file: File | undefined) {
@@ -143,6 +199,14 @@ export function GroupView({ group }: { group: Group }) {
             You&apos;re owed{' '}
             <span className="fig-total text-[.8em]">{formatMinor(mine, group.currency)}</span>.
           </>
+        ) : mine < 0 && myOnlyPayment ? (
+          <>
+            You owe {personName(myOnlyPayment.to, people)}{' '}
+            <span className="fig-total text-[.8em] text-red">
+              {formatMinor(myOnlyPayment.amountMinor, group.currency)}
+            </span>
+            .
+          </>
         ) : mine < 0 ? (
           <>
             You owe{' '}
@@ -158,21 +222,27 @@ export function GroupView({ group }: { group: Group }) {
 
       <div className="mt-[26px] grid grid-cols-[minmax(0,1fr)_330px] items-start gap-11 @max-[860px]/shell:grid-cols-1 @max-[860px]/shell:gap-[34px]">
         <div>
-          {expenses.isPending || members.isPending ? (
+          {expenses.isPending || members.isPending || payments.isPending ? (
             <div
               aria-busy="true"
               aria-label="Loading expenses"
               className="h-40 animate-pulse bg-wash"
             />
-          ) : expenses.isError ? (
+          ) : expenses.isError || payments.isError ? (
             <div className="rounded-pen border-[1.5px] border-dashed border-muted px-[22px] py-[34px] text-center">
               <h3 className="mb-1.5 text-2xl">Couldn&apos;t load the expenses</h3>
               <p className="mb-4 text-muted">Check your connection, then try again.</p>
-              <Button variant="primary" onClick={() => void expenses.refetch()}>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  void expenses.refetch()
+                  void payments.refetch()
+                }}
+              >
                 Try again
               </Button>
             </div>
-          ) : expenses.data.length === 0 ? (
+          ) : expenses.data.length === 0 && payments.data.length === 0 ? (
             <div className="rounded-pen border-[1.5px] border-dashed border-muted px-[22px] py-[34px] text-center">
               <h3 className="mb-1.5 text-2xl">Nothing written down yet</h3>
               <p className="mb-4 text-muted">
@@ -186,6 +256,7 @@ export function GroupView({ group }: { group: Group }) {
             <Ledger
               group={group}
               expenses={expenses.data}
+              payments={payments.data}
               people={people}
               onEdit={(expense) => {
                 setDialog({ kind: 'expense', expense })
@@ -197,7 +268,19 @@ export function GroupView({ group }: { group: Group }) {
           )}
         </div>
 
-        <aside className="@max-[860px]/shell:order-first">
+        <aside className="flex flex-col gap-[34px] @max-[860px]/shell:order-first">
+          {members.data ? <WhereEveryoneStands group={group} people={people} /> : null}
+          {members.data ? (
+            <ClearEverything
+              group={group}
+              people={people}
+              plan={plan}
+              struck={struck}
+              onTick={(transfer) => {
+                setDialog({ kind: 'pay', transfer })
+              }}
+            />
+          ) : null}
           <section>
             <h3 className="flex items-baseline justify-between border-b-[1.5px] border-solid border-ink pb-1.5 text-[1.3rem]">
               Members
@@ -253,6 +336,14 @@ export function GroupView({ group }: { group: Group }) {
             >
               Leave group
             </Button>
+            {isOwner ? (
+              <p className="mt-3 text-[.88rem] text-muted">
+                Balances are kept up to date as things change.{' '}
+                <Button variant="link" disabled={checking} onClick={() => void checkBalances()}>
+                  {checking ? 'Checking…' : 'Check them against every expense'}
+                </Button>
+              </p>
+            ) : null}
           </section>
         </aside>
       </div>
@@ -265,6 +356,20 @@ export function GroupView({ group }: { group: Group }) {
           expense={dialog.expense}
           onClose={() => {
             setDialog(null)
+          }}
+        />
+      ) : null}
+
+      {dialog?.kind === 'pay' ? (
+        <PaymentDialog
+          group={group}
+          transfer={dialog.transfer}
+          people={people}
+          onClose={() => {
+            setDialog(null)
+          }}
+          onRecorded={(amount) => {
+            onPaymentRecorded(dialog.transfer, amount)
           }}
         />
       ) : null}

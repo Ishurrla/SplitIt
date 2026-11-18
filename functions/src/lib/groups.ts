@@ -41,6 +41,8 @@ export type ActivityKind =
   | 'expense.added'
   | 'expense.edited'
   | 'expense.deleted'
+  | 'payment.recorded'
+  | 'balances.recomputed'
 
 export const groupRef = (gid: string) => getFirestore().doc(`groups/${gid}`)
 export const memberRef = (gid: string, uid: string) =>

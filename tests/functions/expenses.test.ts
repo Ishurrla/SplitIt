@@ -9,90 +9,11 @@ import {
   useEmulators,
   type TestClient,
 } from './harness'
+import { balancesOf, expectBalancesExact, newId, save, setupGroup } from './scenario'
 
 // saveExpense and deleteExpense. After every change the stored balances are compared with balances
 // rebuilt from scratch out of the raw expense documents, so "exactly correct" means to the kobo.
 useEmulators()
-
-type Splits = Record<string, number>
-interface Saved {
-  expenseId: string
-  created: boolean
-}
-
-let idCounter = 0
-/** A 20-character id in the Firestore auto-id style, as the client makes them. */
-function newId(): string {
-  idCounter += 1
-  return `exp${String(idCounter).padStart(4, '0')}${'x'.repeat(13)}`
-}
-
-async function setupGroup(names: string[], currency = 'NGN') {
-  const people: TestClient[] = []
-  for (const name of names) people.push(await client({ profile: name }))
-  const [owner, ...rest] = people as [TestClient, ...TestClient[]]
-  const { groupId } = (await owner.call('createGroup', {
-    name: 'Ledger',
-    currency,
-    cover: 'plain',
-  })) as {
-    groupId: string
-  }
-  const { token } = (await owner.call('createInvite', { groupId })) as { token: string }
-  for (const p of rest) await p.call('acceptInvite', { token })
-  return { groupId, people }
-}
-
-function save(
-  c: TestClient,
-  groupId: string,
-  e: {
-    expenseId?: string
-    title?: string
-    amountMinor: number
-    paidBy: string
-    splits: Splits
-    receiptPath?: string | null
-  },
-) {
-  return c.call('saveExpense', {
-    groupId,
-    expenseId: e.expenseId ?? newId(),
-    title: e.title ?? 'Suya and drinks',
-    amountMinor: e.amountMinor,
-    paidBy: e.paidBy,
-    splits: e.splits,
-    receiptPath: e.receiptPath ?? null,
-  }) as Promise<Saved>
-}
-
-const balancesOf = async (groupId: string) =>
-  (await read(`groups/${groupId}`))?.balances as Record<string, number>
-
-/** Balances rebuilt from the raw expenses, independently of the functions' arithmetic. */
-async function rebuiltBalances(groupId: string): Promise<Record<string, number>> {
-  const group = await read(`groups/${groupId}`)
-  const result: Record<string, number> = Object.fromEntries(
-    (group?.memberIds as string[]).map((u) => [u, 0]),
-  )
-  const expenses = await admin(async (db) =>
-    (await db.collection(`groups/${groupId}/expenses`).get()).docs.map((d) => d.data()),
-  )
-  for (const e of expenses) {
-    result[e.paidBy as string] = (result[e.paidBy as string] ?? 0) + (e.amountMinor as number)
-    for (const [u, share] of Object.entries(e.splits as Splits))
-      result[u] = (result[u] ?? 0) - share
-  }
-  return result
-}
-
-async function expectBalancesExact(groupId: string, expected?: Record<string, number>) {
-  const stored = await balancesOf(groupId)
-  expect(stored).toEqual(await rebuiltBalances(groupId))
-  expect(Object.values(stored).reduce((a, b) => a + b, 0)).toBe(0)
-  expect(Object.values(stored).every(Number.isSafeInteger)).toBe(true)
-  if (expected) expect(stored).toEqual(expected)
-}
 
 describe('saveExpense: adding', () => {
   it('adds a 3-way uneven split: the extra kobo goes to the first person, balances exact', async () => {

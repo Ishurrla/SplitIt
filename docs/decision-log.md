@@ -125,3 +125,28 @@ Short entries: what happened, what was tried, what was chosen and why. Newest at
 
 - The first expense-form test failed with "found multiple elements labelled Bayo": the checkbox, and the avatar's SVG next to it, which also had `aria-label="Bayo"`.
 - In lists the name is already written beside the avatar, so the avatar is noise there. Added a `decorative` option that hides it from assistive technology; the avatar stacks, where there is no visible name, keep their labels.
+
+## Phase 5
+
+### 20. "Never more than the payer owes that person", with pooled balances
+
+- Balances are kept per person, not per pair, so "what Bayo owes Ada" isn't stored anywhere. The settle-up plan names an amount, but the plan can change as soon as anyone adds an expense.
+- Chose two limits. The server (`recordPayment`) allows at most the smaller of what the payer owes in total and what the receiver is owed in total, read inside the transaction. That can never push either balance past zero. The dialog is stricter and offers at most the plan's amount for that line, as the prototype does.
+- Two payments recorded at the same moment are two transactions on the same group document: the second re-reads what the first left and is refused. The tests fire two full payments, and five partial ones, at once; exactly the ones that fit go through.
+- Only the payer or the receiver may record a payment, because payments can't be edited or deleted afterwards. Others see the tick box disabled.
+
+### 21. Greedy settle-up, with ties broken by uid
+
+- The truly fewest payments is NP-hard (it means finding subsets of people whose balances cancel out). Greedy largest-creditor/largest-debtor clears at least one person per payment, so never more than n − 1.
+- Ties are broken by uid so every member sees the same plan, whatever order Firestore returns the balances in. A property test runs 2,000 random groups: everyone ends at exactly zero, amounts are positive integers, at most n − 1 payments, and the plan is identical after shuffling. Breaking the tie rule, or matching the smallest debtor first, both fail the tests.
+
+### 22. `recomputeBalances` refuses rather than guess
+
+- Rebuilding from raw expenses and payments must give zero for everyone who has left (they left at zero). If it doesn't, something was written outside the functions, and there is nowhere to put that person's money.
+- Chose: the function stops with a clear error and changes nothing, and logs the details. When the rebuilt balances simply differ from the stored ones, it saves the rebuilt ones and logs an activity entry, so a correction is never silent. The owner can run it from the group page ("Check them against every expense").
+
+### 23. A deleted account left people stuck on an error screen
+
+- Found while seeding the browser check: the browser still held a sign-in for an account the emulator no longer had. Token refresh failed, the app showed "Couldn't set up your profile" with only a Try again button, and trying again repeated the same failure forever. In production the same happens when an account is deleted or disabled.
+- First fix didn't work: I listed the error codes I expected, but the real one was `auth/invalid-refresh-token`, which I found by forcing a token refresh in the page.
+- Now those codes sign the person out, which sends them to the sign-in page with their destination kept. The error screen also has a Log out button as a way out for anything else.

@@ -28,6 +28,15 @@ export function RequireAuth({ children }: { children: ReactNode }) {
         >
           Try again
         </Button>
+        <Button
+          className="ml-2.5"
+          onClick={() => {
+            // Loaded on demand so this guard stays free of Firebase (and testable without it).
+            void import('../auth/actions').then((m) => m.logOut())
+          }}
+        >
+          Log out
+        </Button>
       </FullPageMessage>
     )
   }

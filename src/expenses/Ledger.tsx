@@ -1,5 +1,6 @@
 import { Fragment, useState, type ReactNode } from 'react'
 import { personName, type People } from '../groups/people'
+import { SignedAmount } from '../groups/SignedAmount'
 import { useStorageUrl } from '../groups/queries'
 import type { Group } from '../groups/types'
 import { formatMinor, type CurrencyCode } from '../lib/money'
@@ -7,31 +8,52 @@ import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Icon } from '../ui/Icon'
 import { Modal } from '../ui/Modal'
+import { paymentEffect, type Payment } from '../payments/types'
 import { myEffect, peopleInExpense, type Expense } from './types'
 
 interface LedgerProps {
   group: Group
   expenses: readonly Expense[]
+  payments: readonly Payment[]
   people: People
   onEdit: (e: Expense) => void
   onDelete: (e: Expense) => void
 }
 
-const shortDate = (e: Expense) =>
-  e.createdAt
-    ? e.createdAt.toDate().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+type Row =
+  | { kind: 'expense'; at: number; expense: Expense }
+  | { kind: 'payment'; at: number; payment: Payment }
+
+const shortDate = (r: { createdAt: Expense['createdAt'] }) =>
+  r.createdAt
+    ? r.createdAt.toDate().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
     : '—'
 
 // Below 860px of app width the Paid by column folds under the title, as in the prototype.
 const NARROW_HIDE = '@max-[860px]/shell:hidden'
 const NARROW_SHOW = 'hidden @max-[860px]/shell:block'
 
-/** The group's ledger: one row per expense, newest first, with the total spent underneath. */
-export function Ledger({ group, expenses, people, onEdit, onDelete }: LedgerProps) {
+/**
+ * The group's ledger: expenses and payments together, newest first, with the total spent (expenses
+ * only) underneath. A row that hasn't got its server time yet sorts first: it was just added.
+ */
+export function Ledger({ group, expenses, payments, people, onEdit, onDelete }: LedgerProps) {
   const [open, setOpen] = useState<Set<string>>(new Set())
   const [viewing, setViewing] = useState<Expense | null>(null)
   const currency = group.currency
   const totalSpent = expenses.reduce((sum, e) => sum + e.amountMinor, 0)
+  const rows: Row[] = [
+    ...expenses.map((expense): Row => ({
+      kind: 'expense',
+      at: expense.createdAt?.toMillis() ?? Infinity,
+      expense,
+    })),
+    ...payments.map((payment): Row => ({
+      kind: 'payment',
+      at: payment.createdAt?.toMillis() ?? Infinity,
+      payment,
+    })),
+  ].sort((a, b) => b.at - a.at)
 
   function toggle(id: string) {
     setOpen((s) => {
@@ -55,7 +77,18 @@ export function Ledger({ group, expenses, people, onEdit, onDelete }: LedgerProp
           </tr>
         </thead>
         <tbody>
-          {expenses.map((e) => {
+          {rows.map((row) => {
+            if (row.kind === 'payment') {
+              return (
+                <PaymentRow
+                  key={row.payment.id}
+                  payment={row.payment}
+                  people={people}
+                  currency={currency}
+                />
+              )
+            }
+            const e = row.expense
             const isOpen = open.has(e.id)
             const payer = personName(e.paidBy, people)
             return (
@@ -107,7 +140,7 @@ export function Ledger({ group, expenses, people, onEdit, onDelete }: LedgerProp
                     {formatMinor(e.amountMinor, currency)}
                   </td>
                   <td className="px-2 py-3 text-right whitespace-nowrap">
-                    <Effect amount={myEffect(e, people.me)} currency={currency} />
+                    <SignedAmount amount={myEffect(e, people.me)} currency={currency} />
                   </td>
                 </tr>
                 {isOpen ? (
@@ -156,17 +189,35 @@ export function Ledger({ group, expenses, people, onEdit, onDelete }: LedgerProp
   )
 }
 
-/** "+₦66.66" when I'm owed, "(₦33.33)" in red when I owe, "—" when it doesn't touch me. */
-export function Effect({ amount, currency }: { amount: number; currency: CurrencyCode }) {
-  if (amount > 0)
-    return (
-      <span className="font-mono text-[.92em] font-medium">+{formatMinor(amount, currency)}</span>
-    )
-  if (amount < 0)
-    return (
-      <span className="font-mono text-[.92em] text-red">({formatMinor(-amount, currency)})</span>
-    )
-  return <span className="font-mono text-[.92em] text-muted">—</span>
+/** "Payment: Bayo → Ada", in italics like the prototype; payments can't be opened or changed. */
+function PaymentRow({
+  payment,
+  people,
+  currency,
+}: {
+  payment: Payment
+  people: People
+  currency: CurrencyCode
+}) {
+  const from = personName(payment.from, people)
+  const to = personName(payment.to, people)
+  return (
+    <tr className="border-b border-rule align-baseline text-muted italic">
+      <td className="w-16 px-2 py-3 font-mono text-[.82rem] whitespace-nowrap not-italic">
+        {shortDate(payment)}
+      </td>
+      <td className="px-2 py-3">
+        Payment: {from} → {to}
+      </td>
+      <td className={`px-2 py-3 ${NARROW_HIDE}`}>{from}</td>
+      <td className="px-2 py-3 text-right font-mono text-[.92em] whitespace-nowrap not-italic">
+        {formatMinor(payment.amountMinor, currency)}
+      </td>
+      <td className="px-2 py-3 text-right whitespace-nowrap not-italic">
+        <SignedAmount amount={paymentEffect(payment, people.me)} currency={currency} />
+      </td>
+    </tr>
+  )
 }
 
 function SplitLine({
