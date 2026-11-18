@@ -1,10 +1,6 @@
 import { initializeApp } from 'firebase-admin/app'
-import { setGlobalOptions } from 'firebase-functions/v2'
 
-// Chosen in Phase 0. Firestore and Storage live in the same region.
-setGlobalOptions({ region: 'europe-west1', maxInstances: 10 })
-
+// Region and limits are set on each function through lib/options.ts (see the note there).
 initializeApp()
 
-// Callables are added from Phase 3 onwards.
-export {}
+export { updateProfile } from './profile/updateProfile.js'

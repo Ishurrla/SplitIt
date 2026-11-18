@@ -1,12 +1,12 @@
 {
+  // Type-checks everything in src, tests included. The deploy build uses tsconfig.build.json.
   "compilerOptions": {
     "target": "es2023",
     "lib": ["ES2023"],
     "module": "nodenext",
     "moduleResolution": "nodenext",
-    "outDir": "lib",
     "rootDir": "src",
-    "sourceMap": true,
+    "noEmit": true,
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
     "types": ["node"],
@@ -19,6 +19,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"],
-  "exclude": ["src/**/*.test.ts"]
+  "include": ["src"]
 }

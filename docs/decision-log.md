@@ -34,3 +34,24 @@ Short entries: what happened, what was tried, what was chosen and why. Newest at
 - The prototype lets you read the `users` document of anyone who shares a group with you. A rule can't answer "do we share _some_ group?" without knowing which group, and checking several groups would eat into the 10-document-access limit.
 - Chose: `users/{uid}` is readable only by its owner; `displayName`, `photoPath` and `photoURL` are copied onto `groups/{gid}/members/{uid}`.
 - Side benefit: emails are never visible to other members. Cost: a function must update the copies when someone renames themselves.
+
+## Phase 1
+
+### 6. `updateProfile`: one callable for name and photo, written in batches
+
+- Names and photos are copied onto every `members` document (entry 5), so a client changing `displayName` directly on `users/{uid}` would leave the copies stale, and clients may not write `members` at all.
+- Took `displayName` and `photoPath` out of the client allow-list in the rules. The `updateProfile` callable validates input with zod, checks the photo sits in the caller's own `avatars/` folder and really exists in Storage, then updates every member copy and `users/{uid}`.
+- Writes go in batches of at most 500, run one after another. Batches are not atomic with each other, so member copies are written first and `users/{uid}` last: if a batch fails, the profile still shows the old values, and repeating the call repairs everything (it is idempotent).
+- Testing showed the Firestore emulator accepts a single 521-write batch, so the 520-group integration test proves the end result but not the split. The split is proven by a unit test on `chunks()` instead.
+
+### 7. Functions silently deployed to `us-central1`
+
+- The first `updateProfile` tests all failed with `not-found`. The emulator log showed `us-central1-updateProfile`, not `europe-west1`.
+- Cause: `index.ts` called `setGlobalOptions({ region })` and then re-exported the function. In ES modules every `import`/`export ... from` is evaluated before the file's own code, so the function was defined before the global option existed.
+- Chose explicit options passed to each `onCall()` from `lib/options.ts`, which does not depend on module order. A real deploy would have put the functions on another continent from the database with no error.
+
+### 8. Two names for the same Storage bucket in tests
+
+- The photo test failed: the function said the uploaded avatar did not exist.
+- `@firebase/rules-unit-testing` uploads to `gs://demo-splitit` by default, while the Admin SDK in the functions emulator (and the app's config) uses `demo-splitit.appspot.com`.
+- Chose to name the app's bucket explicitly in every test (`BUCKET` in `tests/rules/world.ts`), so tests and app use the same bucket.

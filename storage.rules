@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// DRAFT for the Phase 0 review. Phase 1 adds tests for these rules.
+// Proven by tests/rules/storage.rules.test.ts (run: pnpm test:rules).
 
 service firebase.storage {
   match /b/{bucket}/o {

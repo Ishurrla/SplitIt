@@ -1,6 +1,7 @@
 rules_version = '2';
 
-// DRAFT for the Phase 0 review. Not deployed. Phase 1 adds the test suite that proves each rule.
+// Proven by tests/rules/firestore.rules.test.ts (run: pnpm test:rules). Not deployed: the
+// project runs on the emulators only.
 //
 // The idea in one line: clients may READ what belongs to groups they are in, and may WRITE only
 // their own profile. Everything else (groups, members, expenses, payments, activity, invites) is
@@ -47,21 +48,19 @@ service cloud.firestore {
       return n is string && n.size() >= 1 && n.size() <= 60;
     }
 
-    // Either no uploaded photo, or a file inside the user's own avatars folder.
-    function validPhotoPath(uid, p) {
-      return p == null || (p is string && p.matches('avatars/' + uid + '/[^/]+'));
-    }
-
-    // Fields a client may change after creation. email, photoURL and createdAt are not in this list.
+    // Fields a client may change directly after creation. displayName and photoPath are NOT here:
+    // they are copied onto every members document, so they change only through the updateProfile
+    // callable, which updates users/{uid} and all the copies together. email, photoURL and
+    // createdAt never change.
     function editableUserFields() {
-      return ['displayName', 'photoPath', 'defaultCurrency', 'weeklyReminders'];
+      return ['defaultCurrency', 'weeklyReminders'];
     }
 
     match /users/{uid} {
       allow read: if isSelf(uid);
 
       // Created by the client on first sign-in. email and photoURL must match the auth token,
-      // so nobody can claim someone else's email or picture.
+      // so nobody can claim someone else's email or picture. No uploaded photo exists yet.
       allow create: if isSelf(uid)
         && request.resource.data.keys().hasOnly(
              ['displayName', 'email', 'photoURL', 'photoPath', 'defaultCurrency', 'weeklyReminders', 'createdAt'])
@@ -70,7 +69,7 @@ service cloud.firestore {
         && validDisplayName(request.resource.data.displayName)
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.photoURL == request.auth.token.get('picture', null)
-        && validPhotoPath(uid, request.resource.data.photoPath)
+        && request.resource.data.photoPath == null
         && validCurrency(request.resource.data.defaultCurrency)
         && request.resource.data.weeklyReminders is bool
         && request.resource.data.createdAt == request.time;
@@ -78,8 +77,6 @@ service cloud.firestore {
       // Field allow-list: only the editable fields may change, and each must stay valid.
       allow update: if isSelf(uid)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(editableUserFields())
-        && validDisplayName(request.resource.data.displayName)
-        && validPhotoPath(uid, request.resource.data.photoPath)
         && validCurrency(request.resource.data.defaultCurrency)
         && request.resource.data.weeklyReminders is bool;
 
@@ -100,7 +97,9 @@ service cloud.firestore {
 
       match /members/{uid} {
         allow read: if isMember(gid);
-        allow write: if false; // createGroup, acceptInvite, leaveGroup, removeMember
+        // createGroup, acceptInvite, leaveGroup, removeMember, and updateProfile for the copied
+        // displayName / photoPath. A client must never write here: it could promote itself to owner.
+        allow write: if false;
       }
 
       match /expenses/{eid} {
