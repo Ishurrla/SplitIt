@@ -1,0 +1,171 @@
+/* Design tokens copied from reference/splitit-ledger-reference.html.
+   Raw values live in CSS variables so the theme switch only swaps variables;
+   @theme inline maps them onto Tailwind utilities (bg-paper, text-ink, shadow-offset ...). */
+
+:root {
+  --paper: #f5f5f1;
+  --sheet: #fdfdfb;
+  --ink: #1b1b1a;
+  --muted: #66665f;
+  --rule: #d8d8d0;
+  --biro: #1e3fb8;
+  --biro-ink: #ffffff;
+  --red: #b8231d;
+  --mark: #ffee9a;
+  --wash: #ecece5;
+  color-scheme: light;
+}
+
+/* Follow the system until the person picks a theme (data-theme on <html>, saved in localStorage). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --paper: #151615;
+    --sheet: #1c1d1c;
+    --ink: #ecebe4;
+    --muted: #a0a099;
+    --rule: #34352f;
+    --biro: #8ea4ff;
+    --biro-ink: #10131f;
+    --red: #ff7b70;
+    --mark: #4d4519;
+    --wash: #262725;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --paper: #151615;
+  --sheet: #1c1d1c;
+  --ink: #ecebe4;
+  --muted: #a0a099;
+  --rule: #34352f;
+  --biro: #8ea4ff;
+  --biro-ink: #10131f;
+  --red: #ff7b70;
+  --mark: #4d4519;
+  --wash: #262725;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-sheet: var(--sheet);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-rule: var(--rule);
+  --color-biro: var(--biro);
+  --color-biro-ink: var(--biro-ink);
+  --color-red: var(--red);
+  --color-mark: var(--mark);
+  --color-wash: var(--wash);
+
+  --font-display: 'Newsreader', Georgia, serif;
+  --font-body: 'Hanken Grotesk', system-ui, sans-serif;
+  --font-mono: 'Spline Sans Mono', ui-monospace, monospace;
+
+  /* Hard offset shadows: cards on hover (5px), toasts (4px), auth panel (6px), modals and sheets (8px). */
+  --shadow-offset-sm: 4px 4px 0 var(--ink);
+  --shadow-offset-md: 5px 5px 0 var(--ink);
+  --shadow-offset: 6px 6px 0 var(--ink);
+  --shadow-offset-lg: 8px 8px 0 var(--ink);
+
+  --radius-pen: 3px;
+  --radius-tick: 2px;
+
+  --animate-rise: rise 0.25s;
+  --animate-highlight: highlight 1s 0.5s forwards;
+  --animate-fresh-row: fresh-row 3s ease-out forwards;
+  --animate-strike: strike 0.6s forwards;
+  --animate-draw: draw 0.6s 0.1s forwards;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes highlight {
+    to {
+      background-size: 100% 100%;
+    }
+  }
+  @keyframes fresh-row {
+    0%,
+    40% {
+      background: var(--mark);
+    }
+    100% {
+      background: transparent;
+    }
+  }
+  @keyframes strike {
+    to {
+      background-size: 100% 2px;
+    }
+  }
+  @keyframes draw {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+}
+
+/* The ledger's pen line: 1.5px solid ink, used on cards, inputs, table heads and modals. */
+@utility border-pen {
+  border: 1.5px solid var(--ink);
+}
+
+/* Double-underlined totals. fig-total for inline totals, fig-big for the settle-up figure. */
+@utility fig-total {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  border-bottom: 3px double currentColor;
+  line-height: 1.15;
+}
+@utility fig-big {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  font-size: clamp(2.2rem, 8vw, 3.4rem);
+  border-bottom: 4px double currentColor;
+  line-height: 1.1;
+}
+
+/* Highlighter sweep behind a phrase. */
+@utility highlighter {
+  background: linear-gradient(transparent 62%, var(--mark) 62% 92%, transparent 92%) no-repeat;
+  background-size: 0 100%;
+  animation: var(--animate-highlight);
+}
+
+/* A newly arrived ledger row: yellow wash that fades out. Put on the <tr>. */
+@utility row-fresh {
+  & > td {
+    animation: var(--animate-fresh-row);
+  }
+}
+
+/* Ticked payment row: a 2px ink line draws across the text, which turns muted. */
+@utility struck {
+  background: linear-gradient(var(--ink), var(--ink)) no-repeat 0 55% / 0 2px;
+  color: var(--muted);
+  animation: var(--animate-strike);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,140 @@
+rules_version = '2';
+
+// DRAFT for the Phase 0 review. Not deployed. Phase 1 adds the test suite that proves each rule.
+//
+// The idea in one line: clients may READ what belongs to groups they are in, and may WRITE only
+// their own profile. Everything else (groups, members, expenses, payments, activity, invites) is
+// written by callable Cloud Functions through the Admin SDK, which bypasses these rules and
+// re-checks membership, amounts and splits itself.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function memberDoc(gid) {
+      return /databases/$(database)/documents/groups/$(gid)/members/$(request.auth.uid);
+    }
+
+    // One document read. The member document id is the uid, so we can check it with exists().
+    function isMember(gid) {
+      return isSignedIn() && exists(memberDoc(gid));
+    }
+
+    // One document read (get). Only true when the member document says role == 'owner'.
+    function isOwner(gid) {
+      return isSignedIn() && get(memberDoc(gid)).data.role == 'owner';
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ---------- users/{uid} ----------
+    // Readable only by the person themselves. Other members' names and photos are copied onto
+    // groups/{gid}/members/{uid} by a function, so the group screens never need to read
+    // someone else's users document (and their email stays private).
+
+    function validCurrency(c) {
+      return c in ['NGN', 'USD', 'GBP', 'EUR', 'GHS', 'KES', 'ZAR', 'CAD', 'JPY'];
+    }
+
+    function validDisplayName(n) {
+      return n is string && n.size() >= 1 && n.size() <= 60;
+    }
+
+    // Either no uploaded photo, or a file inside the user's own avatars folder.
+    function validPhotoPath(uid, p) {
+      return p == null || (p is string && p.matches('avatars/' + uid + '/[^/]+'));
+    }
+
+    // Fields a client may change after creation. email, photoURL and createdAt are not in this list.
+    function editableUserFields() {
+      return ['displayName', 'photoPath', 'defaultCurrency', 'weeklyReminders'];
+    }
+
+    match /users/{uid} {
+      allow read: if isSelf(uid);
+
+      // Created by the client on first sign-in. email and photoURL must match the auth token,
+      // so nobody can claim someone else's email or picture.
+      allow create: if isSelf(uid)
+        && request.resource.data.keys().hasOnly(
+             ['displayName', 'email', 'photoURL', 'photoPath', 'defaultCurrency', 'weeklyReminders', 'createdAt'])
+        && request.resource.data.keys().hasAll(
+             ['displayName', 'email', 'photoURL', 'photoPath', 'defaultCurrency', 'weeklyReminders', 'createdAt'])
+        && validDisplayName(request.resource.data.displayName)
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.photoURL == request.auth.token.get('picture', null)
+        && validPhotoPath(uid, request.resource.data.photoPath)
+        && validCurrency(request.resource.data.defaultCurrency)
+        && request.resource.data.weeklyReminders is bool
+        && request.resource.data.createdAt == request.time;
+
+      // Field allow-list: only the editable fields may change, and each must stay valid.
+      allow update: if isSelf(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(editableUserFields())
+        && validDisplayName(request.resource.data.displayName)
+        && validPhotoPath(uid, request.resource.data.photoPath)
+        && validCurrency(request.resource.data.defaultCurrency)
+        && request.resource.data.weeklyReminders is bool;
+
+      allow delete: if false;
+    }
+
+    // ---------- groups/{gid} and everything under it ----------
+
+    match /groups/{gid} {
+      // Checked with memberIds, not isMember(): the Groups page runs the query
+      // where('memberIds', 'array-contains', uid), and Firestore can only allow a query when the
+      // rule can be proved from the query itself. memberIds is on the document, so this costs no
+      // extra reads. Functions keep memberIds and the members subcollection in step, in one transaction.
+      // If the group does not exist, resource is null, the rule errors and the read is denied,
+      // exactly as for a group you are not in. The UI cannot tell the two apart.
+      allow read: if isSignedIn() && request.auth.uid in resource.data.memberIds;
+      allow write: if false; // createGroup, leaveGroup, removeMember, and money callables only
+
+      match /members/{uid} {
+        allow read: if isMember(gid);
+        allow write: if false; // createGroup, acceptInvite, leaveGroup, removeMember
+      }
+
+      match /expenses/{eid} {
+        allow read: if isMember(gid);
+        allow write: if false; // saveExpense, deleteExpense
+      }
+
+      match /payments/{pid} {
+        allow read: if isMember(gid);
+        allow write: if false; // recordPayment. Payments are never edited or deleted.
+      }
+
+      match /activity/{aid} {
+        allow read: if isMember(gid);
+        allow write: if false; // written by functions in the same transaction as the change
+      }
+    }
+
+    // ---------- invites/{token} ----------
+    // The document id is the secret token. Only the group's owner may read invites (to list
+    // pending ones, with a query filtered by groupId). People with a link never read this
+    // collection: the join screen calls invitePreview(token), which returns only the group
+    // name and the inviter's name.
+    match /invites/{token} {
+      allow read: if isOwner(resource.data.groupId);
+      allow write: if false; // createInvite, acceptInvite
+    }
+
+    // No collection-group rule for activity: the Activity page reads each of my groups'
+    // activity subcollections separately, so every read is covered by isMember(gid) above.
+
+    // ---------- default deny ----------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

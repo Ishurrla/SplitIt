@@ -1,0 +1,12 @@
+// Self-hosted fonts (no CDN). Only the weights and styles the prototype uses.
+import '@fontsource/newsreader/400.css'
+import '@fontsource/newsreader/500.css'
+import '@fontsource/newsreader/600.css'
+import '@fontsource/newsreader/400-italic.css'
+import '@fontsource/newsreader/500-italic.css'
+import '@fontsource/hanken-grotesk/400.css'
+import '@fontsource/hanken-grotesk/500.css'
+import '@fontsource/hanken-grotesk/600.css'
+import '@fontsource/hanken-grotesk/700.css'
+import '@fontsource/spline-sans-mono/400.css'
+import '@fontsource/spline-sans-mono/500.css'

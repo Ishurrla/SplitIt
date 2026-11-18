@@ -1,0 +1,10 @@
+packages:
+  - functions
+# pnpm 11 blocks install scripts unless allowed here.
+allowBuilds:
+  # Only reads Firebase Hosting auto-config; we configure Firebase explicitly.
+  '@firebase/util': false
+  # Only a version-check postinstall; not needed.
+  protobufjs: false
+  # Native binary download for the Vite/Tailwind toolchain.
+  esbuild: true

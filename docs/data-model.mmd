@@ -1,0 +1,85 @@
+%% SplitIt Firestore data model. Source for docs/data-model.png (pnpm diagram) and docs/data-model.md.
+%% Money fields are integers in the currency's smallest unit (kobo, cents, pence, yen).
+erDiagram
+  users["users/{uid}"] {
+    string uid PK "document id = Auth uid"
+    string displayName
+    string email "from Auth token, read-only"
+    string photoURL "Google photo or null, read-only"
+    string photoPath "avatars/{uid}/... or null"
+    string defaultCurrency "NGN USD GBP EUR GHS KES ZAR CAD JPY"
+    bool weeklyReminders
+    timestamp createdAt
+  }
+
+  groups["groups/{gid}"] {
+    string gid PK
+    string name
+    string cover "beach flat dinner trip plain"
+    string coverPath "covers/{gid}/... or null"
+    string currency "locked after first expense"
+    string createdBy FK "users.uid"
+    array memberIds "uid list, for queries and rules"
+    map balances "uid to integer minor units, sums to 0"
+    timestamp createdAt
+  }
+
+  members["groups/{gid}/members/{uid}"] {
+    string uid PK, FK "document id = users.uid"
+    string role "owner or member"
+    string displayName "copied from users"
+    string photoPath "copied from users"
+    string photoURL "copied from users"
+    timestamp joinedAt
+  }
+
+  expenses["groups/{gid}/expenses/{eid}"] {
+    string eid PK
+    string title
+    int amountMinor "integer, more than 0"
+    string paidBy FK "users.uid, a member"
+    string createdBy FK "users.uid, only editor"
+    map splits "uid to integer, sums to amountMinor"
+    array splitUserIds "keys of splits"
+    string receiptPath "receipts/{gid}/{eid}/... or null"
+    timestamp createdAt
+    timestamp updatedAt
+  }
+
+  payments["groups/{gid}/payments/{pid}"] {
+    string pid PK
+    string from FK "users.uid, payer"
+    string to FK "users.uid, receiver"
+    int amountMinor "integer, more than 0"
+    string createdBy FK "users.uid"
+    timestamp createdAt
+  }
+
+  activity["groups/{gid}/activity/{aid}"] {
+    string aid PK
+    string actorId FK "users.uid"
+    string kind "expense.added, payment.recorded, member.joined ..."
+    map payload "small summary for the timeline"
+    timestamp createdAt
+  }
+
+  invites["invites/{token}"] {
+    string token PK "random, unguessable"
+    string groupId FK "groups.gid"
+    string email "null for link invites"
+    string invitedBy FK "users.uid"
+    timestamp acceptedAt "email invites only"
+    timestamp expiresAt
+  }
+
+  groups ||--|{ members : "has"
+  groups ||--o{ expenses : "contains"
+  groups ||--o{ payments : "contains"
+  groups ||--o{ activity : "logs"
+  groups ||--o{ invites : "invited by"
+  users ||--o{ members : "is"
+  users ||--o{ groups : "createdBy"
+  users ||--o{ expenses : "paidBy, createdBy, splits"
+  users ||--o{ payments : "from, to"
+  users ||--o{ activity : "actorId"
+  users ||--o{ invites : "invitedBy"

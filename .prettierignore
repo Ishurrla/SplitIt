@@ -1,0 +1,6 @@
+dist
+functions/lib
+reference
+pnpm-lock.yaml
+docs/*.png
+*.rules

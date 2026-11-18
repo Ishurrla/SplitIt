@@ -1,0 +1,57 @@
+rules_version = '2';
+
+// DRAFT for the Phase 0 review. Phase 1 adds tests for these rules.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function memberDoc(gid) {
+      return /databases/(default)/documents/groups/$(gid)/members/$(request.auth.uid);
+    }
+
+    // Storage rules can read Firestore. Each call counts as a Firestore read.
+    function isMember(gid) {
+      return isSignedIn() && firestore.exists(memberDoc(gid));
+    }
+
+    function isOwner(gid) {
+      return isSignedIn() && firestore.get(memberDoc(gid)).data.role == 'owner';
+    }
+
+    // Raster images only, under 5 MB. SVG is excluded on purpose: it can carry scripts.
+    function isSmallImage() {
+      return request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    // Receipts for an expense. The saveExpense function also checks that receiptPath sits under
+    // receipts/{gid}/{eid}/ for the same group and expense before storing it.
+    match /receipts/{gid}/{eid}/{file} {
+      allow read: if isMember(gid);
+      allow create, update: if isMember(gid) && isSmallImage();
+      allow delete: if false; // removed by deleteExpense through the Admin SDK
+    }
+
+    // Profile photos. Public read so avatars load anywhere; only you write your own folder.
+    match /avatars/{uid}/{file} {
+      allow read: if true;
+      allow create, update: if isSignedIn() && request.auth.uid == uid && isSmallImage();
+      allow delete: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Uploaded group cover photos.
+    match /covers/{gid}/{file} {
+      allow read: if isMember(gid);
+      allow create, update: if isOwner(gid) && isSmallImage();
+      allow delete: if isOwner(gid);
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
