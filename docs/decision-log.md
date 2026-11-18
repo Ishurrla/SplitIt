@@ -150,3 +150,8 @@ Short entries: what happened, what was tried, what was chosen and why. Newest at
 - Found while seeding the browser check: the browser still held a sign-in for an account the emulator no longer had. Token refresh failed, the app showed "Couldn't set up your profile" with only a Try again button, and trying again repeated the same failure forever. In production the same happens when an account is deleted or disabled.
 - First fix didn't work: I listed the error codes I expected, but the real one was `auth/invalid-refresh-token`, which I found by forcing a token refresh in the page.
 - Now those codes sign the person out, which sends them to the sign-in page with their destination kept. The error screen also has a Log out button as a way out for anything else.
+
+### 24. Proving the transaction is what stops overpayment (closing the Phase 5 gap)
+- Removed the transaction from `recordPayment` (same reads and writes, done one by one) and ran the tests. The five-partial-payments race failed, as it should. The two-full-payments race still passed: the test could not have caught the missing transaction.
+- Tried six simultaneous full payments instead: still passed. The functions emulator handles its first burst of calls one at a time and runs later ones in parallel, so whichever race test ran first never really raced.
+- Chose three rounds in fresh groups for the full-payment race, and kept the two-payment race after it. Without the transaction all three race tests now fail; with it, all pass. The lesson for the write-up: a concurrency test has to be shown to fail without the protection, or it may be testing nothing.

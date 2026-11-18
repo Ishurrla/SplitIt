@@ -143,18 +143,41 @@ describe('recordPayment', () => {
     await expectCode(pay(b, groupId, b, a, 0), 'invalid-argument')
   })
 
-  it('cannot overpay when two full payments are recorded at the same moment', async () => {
+  it('cannot overpay when the same full payment is recorded several times at once', async () => {
+    // Bayo and Ada each record Bayo's ₦33.33 three times, all at once, in three fresh groups.
+    // The functions emulator handled the first burst of calls one at a time, so a single round
+    // could not catch a missing transaction (checked: it passed with the transaction removed).
+    // Later rounds really do overlap.
+    for (let round = 0; round < 3; round++) {
+      const { groupId, a, b, c } = await suyaNight()
+      const results = await Promise.allSettled(
+        Array.from({ length: 6 }, (_, i) => pay(i % 2 ? a : b, groupId, b, a, 3_333)),
+      )
+      expect(
+        results.filter((r) => r.status === 'fulfilled'),
+        `round ${round}`,
+      ).toHaveLength(1)
+      for (const r of results) {
+        if (r.status === 'rejected') {
+          expect((r.reason as { code: string }).code).toBe('functions/failed-precondition')
+        }
+      }
+      await expectBalancesExact(groupId, { [a.uid]: 3_333, [b.uid]: 0, [c.uid]: -3_333 })
+      const count = await admin(
+        async (db) => (await db.collection(`groups/${groupId}/payments`).get()).size,
+      )
+      expect(count).toBe(1)
+    }
+  })
+
+  // Runs after the multi-round test above, when the emulator handles calls in parallel.
+  it('two payments recorded at the same moment: exactly one goes through', async () => {
     const { groupId, a, b, c } = await suyaNight()
-    // Bayo and Ada both record Bayo's ₦33.33 at once.
     const results = await Promise.allSettled([
       pay(b, groupId, b, a, 3_333),
       pay(a, groupId, b, a, 3_333),
     ])
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
-    const rejected = results.find((r) => r.status === 'rejected')
-    expect(rejected?.status === 'rejected' && (rejected.reason as { code: string }).code).toBe(
-      'functions/failed-precondition',
-    )
     await expectBalancesExact(groupId, { [a.uid]: 3_333, [b.uid]: 0, [c.uid]: -3_333 })
     const count = await admin(
       async (db) => (await db.collection(`groups/${groupId}/payments`).get()).size,
