@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { personName, type People } from '../groups/people'
 import { SignedAmount } from '../groups/SignedAmount'
 import { useStorageUrl } from '../groups/queries'
@@ -18,6 +18,10 @@ interface LedgerProps {
   people: People
   onEdit: (e: Expense) => void
   onDelete: (e: Expense) => void
+  /** Rows that arrived in the last few seconds: they get the highlighter sweep. */
+  freshIds: ReadonlySet<string>
+  /** An expense to open, scroll to and highlight (from search). */
+  focusId: string | null
 }
 
 type Row =
@@ -37,8 +41,21 @@ const NARROW_SHOW = 'hidden @max-[860px]/shell:block'
  * The group's ledger: expenses and payments together, newest first, with the total spent (expenses
  * only) underneath. A row that hasn't got its server time yet sorts first: it was just added.
  */
-export function Ledger({ group, expenses, payments, people, onEdit, onDelete }: LedgerProps) {
-  const [open, setOpen] = useState<Set<string>>(new Set())
+export function Ledger({
+  group,
+  expenses,
+  payments,
+  people,
+  onEdit,
+  onDelete,
+  freshIds,
+  focusId,
+}: LedgerProps) {
+  const [open, setOpen] = useState<Set<string>>(() => new Set(focusId ? [focusId] : []))
+
+  useEffect(() => {
+    if (focusId) document.getElementById(`expense-${focusId}`)?.scrollIntoView({ block: 'center' })
+  }, [focusId])
   const [viewing, setViewing] = useState<Expense | null>(null)
   const currency = group.currency
   const totalSpent = expenses.reduce((sum, e) => sum + e.amountMinor, 0)
@@ -83,6 +100,7 @@ export function Ledger({ group, expenses, payments, people, onEdit, onDelete }: 
                 <PaymentRow
                   key={row.payment.id}
                   payment={row.payment}
+                  fresh={freshIds.has(row.payment.id)}
                   people={people}
                   currency={currency}
                 />
@@ -93,7 +111,10 @@ export function Ledger({ group, expenses, payments, people, onEdit, onDelete }: 
             const payer = personName(e.paidBy, people)
             return (
               <Fragment key={e.id}>
-                <tr className="border-b border-rule align-baseline">
+                <tr
+                  id={`expense-${e.id}`}
+                  className={`border-b border-rule align-baseline ${freshIds.has(e.id) || e.id === focusId ? 'row-fresh' : ''}`}
+                >
                   <td className="w-16 px-2 py-3 font-mono text-[.82rem] whitespace-nowrap text-muted">
                     {shortDate(e)}
                   </td>
@@ -194,15 +215,19 @@ function PaymentRow({
   payment,
   people,
   currency,
+  fresh,
 }: {
   payment: Payment
   people: People
   currency: CurrencyCode
+  fresh: boolean
 }) {
   const from = personName(payment.from, people)
   const to = personName(payment.to, people)
   return (
-    <tr className="border-b border-rule align-baseline text-muted italic">
+    <tr
+      className={`border-b border-rule align-baseline text-muted italic ${fresh ? 'row-fresh' : ''}`}
+    >
       <td className="w-16 px-2 py-3 font-mono text-[.82rem] whitespace-nowrap not-italic">
         {shortDate(payment)}
       </td>

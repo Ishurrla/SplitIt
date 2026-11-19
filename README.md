@@ -2,7 +2,7 @@
 
 A shared expense splitter: groups, expenses, balances and settle-up, built on Firebase.
 
-> **Status: Phase 5 (balances, settle-up, payments).** Realtime, activity and search arrive in Phase 6.
+> **Status: Phase 6 (realtime, activity, search).** Dashboard totals, settings and photos arrive in Phase 7.
 
 ## What runs where
 
@@ -80,6 +80,14 @@ Google sign-in only works on domains listed in Firebase. When the Vercel site ex
 - **Payments** can be full or partial. Only the payer or the receiver can record one, it can never be more than is owed at that moment, and it can't be edited or deleted afterwards.
 - **`recomputeBalances`** (owner only) rebuilds the balances from every expense and payment and corrects them if they ever differ. The tests check it matches after a mix of expenses, edits, deletes and payments.
 
+## Realtime, activity and search
+
+- **Live updates.** An open group (its page or its settle-up screen) keeps four Firestore `onSnapshot` listeners: the group document (balances, members, name), its expenses, its payments and its activity, newest first and limited (500, 500 and 50). They write straight into TanStack Query's cache, so every part of the page updates together, without refreshing. A small reference-counted registry starts each group's listeners once and stops them when you leave the group's pages, so moving around never leaves a duplicate running.
+- **What you see.** New rows get the highlighter sweep. When someone else changes something, a short note names them ("Bayo Lawal added Taxi back to Lekki ₦6,500."). When balances change, the settle-up plan is fetched again from the `settleUp` function.
+- **Losing access.** If you are removed (or the group is deleted) while it is open, the listeners are refused with `permission-denied` and the page switches to "You're not in this group any more." instead of breaking.
+- **Activity page.** A timeline of the latest entries from each of your groups' `activity` subcollections, with All, Expenses, Payments and Group activity filters.
+- **Search (Ctrl+K or ⌘K) is client-side.** Firestore has no substring search, so the search box loads your groups and each group's latest 500 expenses into the browser and matches there: every word you type must appear, case and accents ignored. It can only find what you can already read, and it doesn't search older expenses or anything on the server.
+
 ## Tests
 
 | Command               | What it proves                                                                                                                                                                                                                                                                                                 | Needs                                         |
@@ -109,6 +117,8 @@ Both emulator suites start and stop the emulators themselves and print a pass/fa
 - **Payments are pooled per person.** "What Bayo owes Ada" isn't stored; the limit for a payment is the smaller of what the payer owes and what the receiver is owed overall.
 - **Settle-up is greedy**, not guaranteed minimal (see above).
 - **No email is sent** for invites yet. You send the personal link yourself.
+- **Long histories are cut off.** The ledger shows a group's latest 500 expenses and 500 payments, so in a bigger group the ledger's "Total spent" covers only those. Balances are always complete, because they are stored on the group, not added up in the browser. The Activity page shows the latest 50 entries per group.
+- **Search only covers what is loaded:** your groups and their latest 500 expenses each, matched in the browser.
 
 ## Docs
 

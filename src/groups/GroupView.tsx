@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
+import { RecentActivity } from '../activity/RecentActivity'
 import { useSignedIn } from '../auth/context'
 import { ExpenseModal } from '../expenses/ExpenseModal'
 import { Ledger } from '../expenses/Ledger'
@@ -19,6 +20,7 @@ import { Button } from '../ui/Button'
 import { buttonClass } from '../ui/buttonStyles'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { useToast } from '../ui/toastContext'
+import { expectLeaving, useFreshIds } from '../live/groupLive'
 import { PaymentDialog } from '../payments/PaymentDialog'
 import { ClearEverything, WhereEveryoneStands } from '../payments/Standing'
 import { transferKey, type Transfer } from '../payments/types'
@@ -27,7 +29,14 @@ import { GroupCover } from './Cover'
 import { InviteModal } from './InviteModal'
 import { countLabel, membersSentence } from './names'
 import { personName, type People } from './people'
-import { refreshGroup, useExpenses, useMembers, usePayments, useSettlePlan } from './queries'
+import {
+  refreshGroup,
+  useActivity,
+  useExpenses,
+  useMembers,
+  usePayments,
+  useSettlePlan,
+} from './queries'
 import type { Group, Member } from './types'
 import { uploadCover } from './uploadCover'
 
@@ -48,8 +57,14 @@ export function GroupView({ group }: { group: Group }) {
   const { user } = useSignedIn()
   const me = user.uid
   const members = useMembers(group.id)
-  const expenses = useExpenses(group.id)
-  const payments = usePayments(group.id)
+  // Filled by the group's live listeners, started in <GroupGate>.
+  const expenses = useExpenses(group.id, 'live')
+  const payments = usePayments(group.id, 'live')
+  const activity = useActivity(group.id, 'live')
+  const fresh = useFreshIds(group.id)
+  // ?expense=<id> (from search) opens and highlights that expense.
+  const [params] = useSearchParams()
+  const focusId = params.get('expense')
   const plan = useSettlePlan(group.id)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -174,6 +189,9 @@ export function GroupView({ group }: { group: Group }) {
             >
               {group.currency}
             </span>
+            <span className="inline-flex items-center gap-1.5 text-[.85rem] before:size-[7px] before:rounded-full before:bg-biro">
+              Updates live
+            </span>
           </p>
         </div>
         <div className="flex flex-wrap gap-2.5">
@@ -258,6 +276,9 @@ export function GroupView({ group }: { group: Group }) {
               expenses={expenses.data}
               payments={payments.data}
               people={people}
+              freshIds={fresh}
+              focusId={focusId}
+              key={focusId ?? 'ledger'}
               onEdit={(expense) => {
                 setDialog({ kind: 'expense', expense })
               }}
@@ -280,6 +301,9 @@ export function GroupView({ group }: { group: Group }) {
                 setDialog({ kind: 'pay', transfer })
               }}
             />
+          ) : null}
+          {members.data && activity.data ? (
+            <RecentActivity group={group} entries={activity.data} people={people} />
           ) : null}
           <section>
             <h3 className="flex items-baseline justify-between border-b-[1.5px] border-solid border-ink pb-1.5 text-[1.3rem]">
@@ -424,13 +448,17 @@ export function GroupView({ group }: { group: Group }) {
             setDialog(null)
           }}
           onConfirm={async () => {
+            // Our own listener will be refused the moment we leave; that is expected, not news.
+            expectLeaving(group.id, true)
             try {
               await leaveGroup({ groupId: group.id })
             } catch (e) {
+              expectLeaving(group.id, false)
               return callableErrorMessage(e)
             }
             setDialog(null)
             await navigate('/app/groups')
+            expectLeaving(group.id, false)
             queryClient.removeQueries({ queryKey: ['group', group.id] })
             await queryClient.invalidateQueries({ queryKey: ['groups'] })
             toast(`You left ${group.name}.`)

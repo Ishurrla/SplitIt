@@ -1,7 +1,16 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query'
-import { collection, getDocs, orderBy, query, where, type Timestamp } from 'firebase/firestore'
+import {
+  collection,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  where,
+  type Timestamp,
+} from 'firebase/firestore'
 import { getDownloadURL, ref } from 'firebase/storage'
 import { db, storage } from '../lib/firebase'
+import type { ActivityEntry } from '../activity/types'
 import type { Expense } from '../expenses/types'
 import { settleUp } from '../lib/callables'
 import type { Payment } from '../payments/types'
@@ -15,6 +24,22 @@ export const keys = {
   expenses: (groupId: string) => ['expenses', groupId] as const,
   payments: (groupId: string) => ['payments', groupId] as const,
   settle: (groupId: string) => ['settle', groupId] as const,
+  activity: (groupId: string) => ['activity', groupId] as const,
+}
+
+/**
+ * How the per-group lists are filled. 'live': only by the onSnapshot listeners of an open group
+ * (see live/groupLive.ts), so nothing is read twice. 'fetch': a one-off read, for screens that
+ * look across groups (search, the Activity page) without keeping every group live.
+ */
+export type Source = 'live' | 'fetch'
+
+/** Newest first, at most max, for one of a group's subcollections. */
+async function latest<T>(groupId: string, name: string, max: number): Promise<T[]> {
+  const snap = await getDocs(
+    query(collection(db, 'groups', groupId, name), orderBy('createdAt', 'desc'), limit(max)),
+  )
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as T)
 }
 
 /** Groups I'm in, newest first. The query matches the rule on groups (memberIds contains me). */
@@ -33,8 +58,8 @@ export function useMyGroups(uid: string) {
 }
 
 /** A group's members, in the order they joined (the owner first). */
-export function useMembers(groupId: string) {
-  return useQuery({
+export function membersQuery(groupId: string) {
+  return {
     queryKey: keys.members(groupId),
     queryFn: async (): Promise<Member[]> => {
       const snap = await getDocs(
@@ -42,7 +67,11 @@ export function useMembers(groupId: string) {
       )
       return snap.docs.map((d) => ({ uid: d.id, ...(d.data() as Omit<Member, 'uid'>) }))
     },
-  })
+  }
+}
+
+export function useMembers(groupId: string) {
+  return useQuery(membersQuery(groupId))
 }
 
 export interface PendingInvite {
@@ -91,29 +120,41 @@ export function useStorageUrl(path: string | null) {
 }
 
 /** A group's expenses, newest first. Members only (firestore.rules). */
-export function useExpenses(groupId: string) {
+export function useExpenses(groupId: string, source: Source) {
   return useQuery({
     queryKey: keys.expenses(groupId),
-    queryFn: async (): Promise<Expense[]> => {
-      const snap = await getDocs(
-        query(collection(db, 'groups', groupId, 'expenses'), orderBy('createdAt', 'desc')),
-      )
-      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Expense, 'id'>) }))
-    },
+    queryFn: () => latest<Expense>(groupId, 'expenses', 500),
+    enabled: source === 'fetch',
   })
 }
 
 /** A group's payments, newest first. Members only. */
-export function usePayments(groupId: string) {
+export function usePayments(groupId: string, source: Source) {
   return useQuery({
     queryKey: keys.payments(groupId),
-    queryFn: async (): Promise<Payment[]> => {
-      const snap = await getDocs(
-        query(collection(db, 'groups', groupId, 'payments'), orderBy('createdAt', 'desc')),
-      )
-      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Payment, 'id'>) }))
-    },
+    queryFn: () => latest<Payment>(groupId, 'payments', 500),
+    enabled: source === 'fetch',
   })
+}
+
+/** A group's latest activity entries, newest first. Members only. */
+export function activityQuery(groupId: string) {
+  return {
+    queryKey: keys.activity(groupId),
+    queryFn: () => latest<ActivityEntry>(groupId, 'activity', 50),
+  }
+}
+
+export function useActivity(groupId: string, source: Source) {
+  return useQuery({ ...activityQuery(groupId), enabled: source === 'fetch' })
+}
+
+/** For search: the same expenses query, fetched once for a group that isn't open. */
+export function expensesQuery(groupId: string) {
+  return {
+    queryKey: keys.expenses(groupId),
+    queryFn: () => latest<Expense>(groupId, 'expenses', 500),
+  }
 }
 
 /** The settle-up plan, worked out by the settleUp function. The browser never computes it. */

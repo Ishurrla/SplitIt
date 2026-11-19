@@ -8,10 +8,6 @@ import { PageStub } from './PageStub'
 
 // Smaller screens. Stubs name the phase that builds them.
 
-export function ActivityPage() {
-  return <PageStub title="Activity" phase={6} />
-}
-
 export function SettingsPage() {
   // Log out works now: on phones the sidebar (and its Log out link) is hidden.
   return (

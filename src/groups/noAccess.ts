@@ -7,10 +7,13 @@
 export class NoAccessError extends Error {
   /** What the server actually answered, shown on the "not in this group" screen. */
   readonly serverCode: string
-  constructor(serverCode: string) {
+  /** True when access ended while the group was open (you were removed, or it was deleted). */
+  readonly whileViewing: boolean
+  constructor(serverCode: string, whileViewing = false) {
     super('No access to this group')
     this.name = 'NoAccessError'
     this.serverCode = serverCode
+    this.whileViewing = whileViewing
   }
 }
 

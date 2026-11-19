@@ -152,6 +152,27 @@ Short entries: what happened, what was tried, what was chosen and why. Newest at
 - Now those codes sign the person out, which sends them to the sign-in page with their destination kept. The error screen also has a Log out button as a way out for anything else.
 
 ### 24. Proving the transaction is what stops overpayment (closing the Phase 5 gap)
+
 - Removed the transaction from `recordPayment` (same reads and writes, done one by one) and ran the tests. The five-partial-payments race failed, as it should. The two-full-payments race still passed: the test could not have caught the missing transaction.
 - Tried six simultaneous full payments instead: still passed. The functions emulator handles its first burst of calls one at a time and runs later ones in parallel, so whichever race test ran first never really raced.
 - Chose three rounds in fresh groups for the full-payment race, and kept the two-payment race after it. Without the transaction all three race tests now fail; with it, all pass. The lesson for the write-up: a concurrency test has to be shown to fail without the protection, or it may be testing nothing.
+
+## Phase 6
+
+### 25. One set of listeners per open group, counted
+
+- Each open group needs four `onSnapshot` listeners (the group, expenses, payments, activity). React's StrictMode mounts every screen twice in development, and moving between the group page and its settle page would otherwise stop and restart them, or leave a second set running.
+- Chose a small reference-counted registry: the first screen to ask starts the listeners, later ones share them, and they stop when the last one lets go. Unit-tested, including the StrictMode mount-unmount-mount pattern.
+- Checked in the browser with a dev-only counter on `window`: exactly 4 listeners on the group and settle pages, 0 on other pages, 4 again after pressing Back, 0 after being removed and leaving the page.
+- The listeners write straight into TanStack Query's cache, and on an open group those queries never fetch on their own, so nothing is read twice.
+
+### 26. "Removed while viewing" showed the wrong message
+
+- When someone is removed, all four listeners are refused with `permission-denied` at once. The first refusal set the "no access" state with "access just ended" wording and cleared the group data; the second one then saw no data, concluded the person had never had access, and overwrote the wording.
+- Found in the two-window check (Ada removed Bayo while Bayo's page was open). Fixed by letting the first refusal decide and ignoring the rest. Re-tested: Bayo now sees "You're not in this group any more." with the real `onSnapshot … permission-denied` line, and no errors.
+- Leaving a group yourself is marked beforehand, so your own refusal doesn't flash that screen on the way out (checked with a DOM watcher: it never appeared).
+
+### 27. Search runs in the browser
+
+- Firestore has no "contains" search for text, and a search service (Algolia and similar) would be a new dependency and a copy of private data outside Firebase.
+- Chose to search in the browser over what the person can already read: their groups, and each group's latest 500 expenses, loaded when the search box opens. Every word typed must appear, case and accents ignored. This is honest about its reach (the README says so) and can never show anything the rules wouldn't.

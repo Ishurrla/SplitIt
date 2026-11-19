@@ -18,7 +18,15 @@ async function fetchGroup(groupId: string): Promise<Group> {
   }
 }
 
-/** One group. Fails with NoAccessError for groups you are not in (or that don't exist). */
+/**
+ * One group. Fails with NoAccessError for groups you are not in (or that don't exist).
+ * On an open group the data comes from its listener (live/groupLive.ts), which also sets the
+ * NoAccessError if access ends; the one-off read here only runs when the person presses retry.
+ */
 export function useGroup(groupId: string) {
-  return useQuery({ queryKey: groupKey(groupId), queryFn: () => fetchGroup(groupId) })
+  return useQuery({
+    queryKey: groupKey(groupId),
+    queryFn: () => fetchGroup(groupId),
+    enabled: false,
+  })
 }
