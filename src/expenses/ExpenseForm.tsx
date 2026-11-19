@@ -17,6 +17,7 @@ import { MoneyInput } from './MoneyInput'
 export interface FormMember {
   uid: string
   displayName: string
+  photoPath: string | null
   photoURL: string | null
 }
 
@@ -317,7 +318,8 @@ export function ExpenseForm({
               <Avatar
                 seed={m.uid}
                 name={m.displayName}
-                photoUrl={m.photoURL}
+                photoPath={m.photoPath}
+                photoURL={m.photoURL}
                 size="sm"
                 decorative
               />

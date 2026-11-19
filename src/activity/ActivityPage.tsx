@@ -121,7 +121,20 @@ export function ActivityPage() {
                 key={`${group.id}/${entry.id}`}
                 className={`relative flex items-start gap-3 border-b border-rule py-3.5 pl-1 before:absolute before:top-[21px] before:-left-[31px] before:size-3 before:border-2 before:border-solid before:border-ink ${marker[activityCategory(entry.kind)]}`}
               >
-                <Avatar seed={entry.actorId} name="" size="sm" decorative />
+                <Avatar
+                  seed={entry.actorId}
+                  name=""
+                  photoPath={
+                    members[list.indexOf(group)]?.data?.find((m) => m.uid === entry.actorId)
+                      ?.photoPath
+                  }
+                  photoURL={
+                    members[list.indexOf(group)]?.data?.find((m) => m.uid === entry.actorId)
+                      ?.photoURL
+                  }
+                  size="sm"
+                  decorative
+                />
                 <div className="min-w-0 flex-1">
                   <span>{text}</span>
                   <small className="block text-muted">

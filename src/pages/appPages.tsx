@@ -2,26 +2,9 @@ import { Link, useParams } from 'react-router'
 import { GroupGate } from '../groups/GroupGate'
 import { GroupView } from '../groups/GroupView'
 import { SettleView } from '../payments/SettleView'
-import { LogOutButton } from '../shell/LogOutButton'
 import { buttonClass } from '../ui/buttonStyles'
-import { PageStub } from './PageStub'
 
-// Smaller screens. Stubs name the phase that builds them.
-
-export function SettingsPage() {
-  // Log out works now: on phones the sidebar (and its Log out link) is hidden.
-  return (
-    <PageStub title="Settings" phase={7}>
-      <div className="mt-[18px] flex flex-wrap items-center justify-between gap-4 border-b border-rule py-[18px]">
-        <div>
-          <b className="block font-semibold">Log out</b>
-          <span className="text-[.9rem] text-muted">Sign out of SplitIt on this device.</span>
-        </div>
-        <LogOutButton />
-      </div>
-    </PageStub>
-  )
-}
+// The group routes and the not-found page.
 
 function useGroupId(): string {
   const { id } = useParams()

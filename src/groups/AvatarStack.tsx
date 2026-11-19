@@ -15,7 +15,14 @@ export function AvatarStack({
   return (
     <span className="inline-flex items-center [&>*+*]:-ml-2">
       {members.slice(0, SHOWN).map((m) => (
-        <Avatar key={m.uid} seed={m.uid} name={m.displayName} photoUrl={m.photoURL} size={size} />
+        <Avatar
+          key={m.uid}
+          seed={m.uid}
+          name={m.displayName}
+          photoPath={m.photoPath}
+          photoURL={m.photoURL}
+          size={size}
+        />
       ))}
       {extra > 0 ? (
         <span

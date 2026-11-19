@@ -4,8 +4,8 @@ import { personName, type People } from './people'
 const people: People = {
   me: 'me',
   members: [
-    { uid: 'me', displayName: 'Dami', photoURL: null },
-    { uid: 'ada', displayName: 'Ada', photoURL: null },
+    { uid: 'me', displayName: 'Dami', photoPath: null, photoURL: null },
+    { uid: 'ada', displayName: 'Ada', photoPath: null, photoURL: null },
   ],
   pastMembers: { bayo: { displayName: 'Bayo' } },
 }
@@ -28,7 +28,10 @@ describe('personName', () => {
     expect(
       personName('bayo', {
         ...people,
-        members: [...people.members, { uid: 'bayo', displayName: 'Bayo L.', photoURL: null }],
+        members: [
+          ...people.members,
+          { uid: 'bayo', displayName: 'Bayo L.', photoPath: null, photoURL: null },
+        ],
       }),
     ).toBe('Bayo L.')
   })

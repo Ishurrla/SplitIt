@@ -150,7 +150,8 @@ export function Ledger({
                       <Avatar
                         seed={e.paidBy}
                         name={payer}
-                        photoUrl={people.members.find((m) => m.uid === e.paidBy)?.photoURL}
+                        photoPath={people.members.find((m) => m.uid === e.paidBy)?.photoPath}
+                        photoURL={people.members.find((m) => m.uid === e.paidBy)?.photoURL}
                         size="sm"
                         decorative
                       />

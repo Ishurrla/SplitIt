@@ -15,6 +15,9 @@ const PATHS = {
   photo: 'M4 7h3l2-2h6l2 2h3v12H4z M12 9.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7z',
   go: 'M9 5l7 7-7 7',
   copy: 'M9 9h10v10H9z M5 15V5h10',
+  down: 'M12 5v14M6 13l6 6 6-6',
+  up: 'M12 19V5M6 11l6-6 6 6',
+  net: 'M4 8h16M4 16h16M9 4l-4 4 4 4M15 12l4 4-4 4',
 } as const
 
 export type IconName = keyof typeof PATHS

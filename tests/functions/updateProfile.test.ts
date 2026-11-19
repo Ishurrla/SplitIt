@@ -3,6 +3,7 @@ import {
   admin,
   client,
   expectCode,
+  fileExists,
   member,
   putFile,
   read,
@@ -114,6 +115,26 @@ describe('updateProfile: what it changes', () => {
     expect((await read(`groups/elsewhere-${me.uid}/members/stranger`))?.displayName).toBe('Dami')
     // role is untouched on your own member document
     expect((await read(`groups/shared-${me.uid}/members/${me.uid}`))?.role).toBe('owner')
+  })
+
+  it('deletes the old photo file when it is replaced or removed', async () => {
+    const me = await client()
+    await seedUser(me.uid, 'Ada')
+    const first = `avatars/${me.uid}/one.jpg`
+    const second = `avatars/${me.uid}/two.jpg`
+    await putFile(first)
+    await putFile(second)
+    await call(me, { photoPath: first })
+    await call(me, { photoPath: second })
+    expect(await fileExists(first)).toBe(false)
+    expect(await fileExists(second)).toBe(true)
+    await call(me, { photoPath: null })
+    expect(await fileExists(second)).toBe(false)
+    // A name change leaves the photo alone.
+    await putFile(first)
+    await call(me, { photoPath: first })
+    await call(me, { displayName: 'Ada L.' })
+    expect(await fileExists(first)).toBe(true)
   })
 
   it('sets an uploaded photo on your profile and every copy, then removes it with null', async () => {

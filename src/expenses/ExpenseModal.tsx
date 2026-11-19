@@ -83,6 +83,7 @@ export function ExpenseModal({ group, members, me, expense, onClose }: ExpenseMo
   const formMembers = members.map((m) => ({
     uid: m.uid,
     displayName: m.displayName,
+    photoPath: m.photoPath,
     photoURL: m.photoURL,
   }))
 

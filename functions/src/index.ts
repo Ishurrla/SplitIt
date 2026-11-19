@@ -3,6 +3,7 @@ import { initializeApp } from 'firebase-admin/app'
 // Region and limits are set on each function through lib/options.ts (see the note there).
 initializeApp()
 
+export { spendingByMonth } from './dashboard/spendingByMonth.js'
 export { deleteExpense, saveExpense } from './expenses/expenses.js'
 export { createGroup } from './groups/createGroup.js'
 export { updateGroup } from './groups/updateGroup.js'

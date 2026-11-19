@@ -176,3 +176,22 @@ Short entries: what happened, what was tried, what was chosen and why. Newest at
 
 - Firestore has no "contains" search for text, and a search service (Algolia and similar) would be a new dependency and a copy of private data outside Firebase.
 - Chose to search in the browser over what the person can already read: their groups, and each group's latest 500 expenses, loaded when the search box opens. Every word typed must appear, case and accents ignored. This is honest about its reach (the README says so) and can never show anything the rules wouldn't.
+
+## Phase 7
+
+### 28. Money in different currencies is never added up
+
+- The dashboard tiles (you owe, owed to you, net) come from each group's stored balance. A pure function groups them by currency and only ever adds amounts in the same currency; there is no grand total and no exchange rate anywhere. Each tile shows one line per currency with its code, and the note "Balances are kept per currency. SplitIt does not convert between them." is always shown, not only when there are several currencies, so the rule is visible before it matters.
+- The spending chart follows the same rule: one row per currency from the function, and tabs to switch between them.
+
+### 29. `spendingByMonth`: my share, by month, in my time zone
+
+- It reads only expenses where I'm in the split (`splitUserIds` array-contains me) in groups I'm in, and adds `splits[me]`, never the whole amount, so paying for others isn't "spending". Edits and deletes need no special handling: it reads what the expenses say now (tests change a share, remove me from the split, and delete the expense).
+- Months start at midnight in the viewer's time zone, sent by the browser and checked on the server, so 00:30 on 1 November in Lagos counts as November. The bucketing is a pure function with tests for yen, several currencies and that boundary.
+- Trade-offs: an expense is filed under the month it was added (there is no separate "date spent" field), and the query needs the (`splitUserIds`, `createdAt`) composite index in `firestore.indexes.json`, which the emulator doesn't check, so it is unverified until a real deploy.
+
+### 30. Avatar photos are fetched by URL, without the Storage SDK
+
+- The order is uploaded photo, then Google photo, then the illustration picked by a hash of the uid. Avatars appear everywhere, including the expense form, which is tested in jsdom without Firebase.
+- `avatars/` is public-read in storage.rules, so the download URL can be built from the path alone. That keeps `Avatar` free of Firebase, lets it try each source in order and fall back on a load error, and makes the order a small pure function with tests. Receipts and covers are private and still use `getDownloadURL`.
+- `updateProfile` now also deletes the previous photo file when it is replaced or removed (tested).

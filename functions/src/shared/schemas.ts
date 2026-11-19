@@ -147,6 +147,21 @@ export const recordPaymentInput = z
   })
   .refine((d) => d.from !== d.to, { message: 'Someone cannot pay themselves.', path: ['to'] })
 
+// ---------- dashboard ----------
+
+export const spendingByMonthInput = z.strictObject({
+  /** The viewer's time zone, so months start at their midnight (e.g. "Africa/Lagos"). */
+  timeZone: z.string().min(1).max(64),
+  months: z.number().int().min(1).max(12).default(6),
+})
+
+export interface SpendingByMonthResult {
+  /** "2026-06" … "2026-11", oldest first. */
+  months: string[]
+  /** One row per currency of my groups: my share per month, in that currency's minor units. */
+  byCurrency: Record<string, number[]>
+}
+
 // ---------- inputs as the client sends them ----------
 
 export type CreateGroupInput = z.input<typeof createGroupInput>

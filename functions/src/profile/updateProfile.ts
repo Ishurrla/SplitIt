@@ -1,5 +1,6 @@
 import { getFirestore, type DocumentReference } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
+import { logger } from 'firebase-functions'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { z } from 'zod'
 import { parseInput, requireAuth } from '../lib/callable.js'
@@ -51,7 +52,8 @@ export const updateProfile = onCall<unknown, Promise<UpdateProfileResult>>(
 
     const db = getFirestore()
     const userRef = db.doc(`users/${uid}`)
-    if (!(await userRef.get()).exists) {
+    const userSnap = await userRef.get()
+    if (!userSnap.exists) {
       throw new HttpsError(
         'failed-precondition',
         'Your profile has not been set up yet. Sign out, sign in again, then retry.',
@@ -71,6 +73,18 @@ export const updateProfile = onCall<unknown, Promise<UpdateProfileResult>>(
       for (const ref of piece) batch.update(ref, changes)
       // Sequential on purpose: users/{uid} is in the last batch and must only change after the copies.
       await batch.commit()
+    }
+
+    // Tidy up the photo that was replaced or removed. Best effort: a leftover file is harmless.
+    const previous = (userSnap.data() as { photoPath?: string | null }).photoPath ?? null
+    if (input.photoPath !== undefined && previous && previous !== input.photoPath) {
+      await getStorage()
+        .bucket()
+        .file(previous)
+        .delete({ ignoreNotFound: true })
+        .catch((error: unknown) => {
+          logger.warn('Could not delete old profile photo', { previous, error })
+        })
     }
 
     return { groupsUpdated: memberRefs.length }

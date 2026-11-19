@@ -22,7 +22,14 @@ export function WhereEveryoneStands({ group, people }: { group: Group; people: P
       <ul>
         {people.members.map((m) => (
           <li key={m.uid} className="flex items-center gap-2 border-b border-rule py-[9px]">
-            <Avatar seed={m.uid} name={m.displayName} photoUrl={m.photoURL} size="sm" decorative />
+            <Avatar
+              seed={m.uid}
+              name={m.displayName}
+              photoPath={m.photoPath}
+              photoURL={m.photoURL}
+              size="sm"
+              decorative
+            />
             <span>{personName(m.uid, people)}</span>
             <span
               aria-hidden="true"

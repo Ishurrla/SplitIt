@@ -8,9 +8,9 @@ afterEach(cleanup)
 
 // Members in the order they joined: equal splits give the odd kobo to the first names.
 const members: FormMember[] = [
-  { uid: 'ada', displayName: 'Ada', photoURL: null },
-  { uid: 'bayo', displayName: 'Bayo', photoURL: null },
-  { uid: 'chi', displayName: 'Chi', photoURL: null },
+  { uid: 'ada', displayName: 'Ada', photoPath: null, photoURL: null },
+  { uid: 'bayo', displayName: 'Bayo', photoPath: null, photoURL: null },
+  { uid: 'chi', displayName: 'Chi', photoPath: null, photoURL: null },
 ]
 
 function renderForm(

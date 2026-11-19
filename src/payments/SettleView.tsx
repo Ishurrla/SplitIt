@@ -102,7 +102,7 @@ export function SettleView({ group }: { group: Group }) {
         mine.map((t) => {
           const out = t.from === me
           const isStruck = struck.has(transferKey(t))
-          const photoOf = (uid: string) => members.data.find((m) => m.uid === uid)?.photoURL
+          const memberOf = (uid: string) => members.data.find((m) => m.uid === uid)
           return (
             <div key={transferKey(t)} className={card}>
               <div className="flex w-full items-center justify-center gap-[22px] @max-[860px]/shell:gap-2.5">
@@ -110,7 +110,8 @@ export function SettleView({ group }: { group: Group }) {
                   <Avatar
                     seed={t.from}
                     name={name(t.from)}
-                    photoUrl={photoOf(t.from)}
+                    photoPath={memberOf(t.from)?.photoPath}
+                    photoURL={memberOf(t.from)?.photoURL}
                     size="xl"
                     decorative
                   />
@@ -124,7 +125,8 @@ export function SettleView({ group }: { group: Group }) {
                   <Avatar
                     seed={t.to}
                     name={name(t.to)}
-                    photoUrl={photoOf(t.to)}
+                    photoPath={memberOf(t.to)?.photoPath}
+                    photoURL={memberOf(t.to)?.photoURL}
                     size="xl"
                     decorative
                   />

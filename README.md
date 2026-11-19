@@ -2,7 +2,7 @@
 
 A shared expense splitter: groups, expenses, balances and settle-up, built on Firebase.
 
-> **Status: Phase 6 (realtime, activity, search).** Dashboard totals, settings and photos arrive in Phase 7.
+> **Status: Phase 7 (dashboard, spending chart, settings, photos).** Polish and deployment arrive in Phase 8.
 
 ## What runs where
 
@@ -88,13 +88,21 @@ Google sign-in only works on domains listed in Firebase. When the Vercel site ex
 - **Activity page.** A timeline of the latest entries from each of your groups' `activity` subcollections, with All, Expenses, Payments and Group activity filters.
 - **Search (Ctrl+K or ⌘K) is client-side.** Firestore has no substring search, so the search box loads your groups and each group's latest 500 expenses into the browser and matches there: every word you type must appear, case and accents ignored. It can only find what you can already read, and it doesn't search older expenses or anything on the server.
 
+## Dashboard, settings and photos
+
+- **Totals** (you owe, owed to you, net) come from each group's stored balance and are shown **one line per currency**. Amounts in different currencies are never added together or converted.
+- **Spending chart:** your share of expenses per month for the last six months, worked out by the `spendingByMonth` function from the real expenses (only `splits[you]`, never the whole amount). One tab per currency. Past months are hatched, the current month is blue, and screen readers get every month's figure.
+- **Quick actions:** add an expense or invite (pick a group first), create a group, or jump to the group where you owe (or are owed) the most.
+- **Settings:** your name and photo go through `updateProfile`, so every group sees the change. Reminders and default currency are saved straight to your profile. There's also the theme switch and log out.
+- **Avatars** show your uploaded photo, then your Google photo, then an illustration picked by a stable hash of your uid.
+
 ## Tests
 
-| Command               | What it proves                                                                                                                                                                                                                                                                                                 | Needs                                         |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `pnpm test`           | Unit and component tests: money parsing, formatting and equal splits, balance arithmetic (with a 500-step random check), image checks, and components in jsdom: the route guard, the money input and the expense form's split totals                                                                           | nothing                                       |
-| `pnpm test:rules`     | 126 checks on `firestore.rules` and `storage.rules`. An outsider (B) can't read or write anything in A's group, including members, expenses, payments, activity, invites, receipts and A's profile. Even the owner can't write money data directly. Signed-out visitors get nothing.                           | Java (starts Firestore and Storage emulators) |
-| `pnpm test:functions` | Every callable, called through the client SDK: profile, groups, invites, membership, expenses (balances rebuilt from raw expenses after every change), and payments (overpaying refused even when two payments race; settle-up plans; people who left excluded; `recomputeBalances` after a mix of everything) | Java (starts all emulators)                   |
+| Command               | What it proves                                                                                                                                                                                                                                                                                                                               | Needs                                         |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `pnpm test`           | Unit and component tests: money parsing, formatting and equal splits, balance arithmetic (with a 500-step random check), image checks, and components in jsdom: the route guard, the money input and the expense form's split totals                                                                                                         | nothing                                       |
+| `pnpm test:rules`     | 126 checks on `firestore.rules` and `storage.rules`. An outsider (B) can't read or write anything in A's group, including members, expenses, payments, activity, invites, receipts and A's profile. Even the owner can't write money data directly. Signed-out visitors get nothing.                                                         | Java (starts Firestore and Storage emulators) |
+| `pnpm test:functions` | Every callable, called through the client SDK: profile (including old photos deleted), groups, invites, membership, expenses (balances rebuilt from raw expenses after every change), payments (overpaying refused even when payments race), and `spendingByMonth` (my share only, yen, several currencies, edits and deletes, older months) | Java (starts all emulators)                   |
 
 Both emulator suites start and stop the emulators themselves and print a pass/fail table at the end. Don't run them while `pnpm emulators` is already running: the ports clash.
 
@@ -118,6 +126,7 @@ Both emulator suites start and stop the emulators themselves and print a pass/fa
 - **Settle-up is greedy**, not guaranteed minimal (see above).
 - **No email is sent** for invites yet. You send the personal link yourself.
 - **Long histories are cut off.** The ledger shows a group's latest 500 expenses and 500 payments, so in a bigger group the ledger's "Total spent" covers only those. Balances are always complete, because they are stored on the group, not added up in the browser. The Activity page shows the latest 50 entries per group.
+- **The spending chart uses the date an expense was added**, since expenses have no separate "date spent". It also needs a composite index (in `firestore.indexes.json`) that the emulator doesn't check.
 - **Search only covers what is loaded:** your groups and their latest 500 expenses each, matched in the browser.
 
 ## Docs

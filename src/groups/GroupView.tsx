@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { RecentActivity } from '../activity/RecentActivity'
 import { useSignedIn } from '../auth/context'
@@ -63,14 +63,31 @@ export function GroupView({ group }: { group: Group }) {
   const activity = useActivity(group.id, 'live')
   const fresh = useFreshIds(group.id)
   // ?expense=<id> (from search) opens and highlights that expense.
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const focusId = params.get('expense')
+  const addParam = params.get('add')
+  useEffect(() => {
+    // Drop ?add= once used, so a refresh doesn't open the dialog again.
+    if (addParam) {
+      setParams(
+        (p) => {
+          p.delete('add')
+          return p
+        },
+        { replace: true },
+      )
+    }
+  }, [addParam, setParams])
   const plan = useSettlePlan(group.id)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const toast = useToast()
   const coverInput = useRef<HTMLInputElement>(null)
-  const [dialog, setDialog] = useState<Dialog>(null)
+  // ?add=expense or ?add=invite (from the dashboard's quick actions) opens that dialog on arrival.
+  const [dialog, setDialog] = useState<Dialog>(() => {
+    const add = new URLSearchParams(window.location.search).get('add')
+    return add === 'expense' ? { kind: 'expense' } : add === 'invite' ? { kind: 'invite' } : null
+  })
   const [uploading, setUploading] = useState(false)
   const [struck, setStruck] = useState<ReadonlySet<string>>(new Set())
   const [checking, setChecking] = useState(false)
@@ -325,7 +342,8 @@ export function GroupView({ group }: { group: Group }) {
                     <Avatar
                       seed={m.uid}
                       name={m.displayName}
-                      photoUrl={m.photoURL}
+                      photoPath={m.photoPath}
+                      photoURL={m.photoURL}
                       size="sm"
                       decorative
                     />

@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { publicStorageUrl } from '../lib/storageUrl'
 import { avatarArtFor } from './avatarArt'
+import { avatarSources } from './avatarSources'
 
 const SIZES = { sm: 'size-6', md: 'size-8', lg: 'size-11', xl: 'size-[84px] border-2' } as const
 
@@ -7,31 +9,44 @@ interface AvatarProps {
   /** Used for the illustration choice. Pass the uid so it is stable. */
   seed: string
   name: string
-  /** A ready-to-use image URL (the Google photo for now; uploaded photos come in Phase 7). */
-  photoUrl?: string | null | undefined
+  /** An uploaded photo in avatars/{uid}/ (tried first). */
+  photoPath?: string | null | undefined
+  /** The Google account photo (tried second). */
+  photoURL?: string | null | undefined
   size?: keyof typeof SIZES
   /** Hide from screen readers when the name is already written right next to it. */
   decorative?: boolean
 }
 
-/** Round avatar with a pen border: the photo when there is one, otherwise an illustration. */
-export function Avatar({ seed, name, photoUrl, size = 'md', decorative = false }: AvatarProps) {
-  const [failed, setFailed] = useState(false)
-  const showPhoto = Boolean(photoUrl) && !failed
+/**
+ * Round avatar with a pen border. Shows the uploaded photo, else the Google photo, else (or if
+ * both fail to load) an illustration picked by a stable hash of the uid.
+ */
+export function Avatar({
+  seed,
+  name,
+  photoPath,
+  photoURL,
+  size = 'md',
+  decorative = false,
+}: AvatarProps) {
+  const [failed, setFailed] = useState<ReadonlySet<string>>(new Set())
+  const src = avatarSources({ photoPath, photoURL }, publicStorageUrl).find((s) => !failed.has(s))
   return (
     <span
       title={decorative ? undefined : name}
       aria-hidden={decorative ? true : undefined}
       className={`inline-block shrink-0 overflow-hidden rounded-full border-[1.5px] border-solid border-ink bg-wash align-middle ${SIZES[size]}`}
     >
-      {showPhoto ? (
+      {src ? (
         <img
-          src={photoUrl ?? undefined}
+          key={src}
+          src={src}
           alt={decorative ? '' : name}
           referrerPolicy="no-referrer"
           className="block size-full object-cover"
           onError={() => {
-            setFailed(true)
+            setFailed((f) => new Set(f).add(src))
           }}
         />
       ) : (
@@ -40,7 +55,6 @@ export function Avatar({ seed, name, photoUrl, size = 'md', decorative = false }
     </span>
   )
 }
-
 function Illustration({ seed, name }: { seed: string; name: string | null }) {
   const a = avatarArtFor(seed)
   return (

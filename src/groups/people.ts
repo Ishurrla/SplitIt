@@ -2,7 +2,7 @@ import type { Group, Member } from './types'
 
 export interface People {
   me: string
-  members: readonly Pick<Member, 'uid' | 'displayName' | 'photoURL'>[]
+  members: readonly Pick<Member, 'uid' | 'displayName' | 'photoPath' | 'photoURL'>[]
   pastMembers: Group['pastMembers']
 }
 
