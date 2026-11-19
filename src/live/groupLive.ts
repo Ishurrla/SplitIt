@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import type { Probe } from '../dev/probe'
 import {
   collection,
   doc,
@@ -221,10 +222,17 @@ export function useFreshIds(groupId: string): ReadonlySet<string> {
 
 declare global {
   interface Window {
-    /** Dev only: which groups are live and how many onSnapshot listeners are open. */
-    __splitit?: { liveGroups: () => string[]; openListeners: () => number }
+    /**
+     * Dev only: which groups are live and how many onSnapshot listeners are open (set here), and
+     * the console probe from src/dev/probe.ts.
+     */
+    __splitit?: Partial<{ liveGroups: () => string[]; openListeners: () => number } & Probe>
   }
 }
 if (import.meta.env.DEV && typeof window !== 'undefined') {
-  window.__splitit = { liveGroups: activeKeys, openListeners: () => openListeners }
+  window.__splitit = {
+    ...window.__splitit,
+    liveGroups: activeKeys,
+    openListeners: () => openListeners,
+  }
 }

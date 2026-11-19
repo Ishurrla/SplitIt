@@ -2,7 +2,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { useSignedIn } from '../auth/context'
-import { acceptInvite, callableErrorMessage, invitePreview } from '../lib/callables'
+import {
+  acceptInvite,
+  callableErrorMessage,
+  invitePreview,
+  isConnectionError,
+} from '../lib/callables'
 import { LogOutButton } from '../shell/LogOutButton'
 import { Brand } from '../ui/Brand'
 import { Button } from '../ui/Button'
@@ -52,6 +57,11 @@ export function JoinPage() {
         <Link to="/app" className={buttonClass('primary')}>
           Go to SplitIt
         </Link>
+        {isConnectionError(preview.error) ? (
+          <Button className="ml-2.5" onClick={() => void preview.refetch()}>
+            Try again
+          </Button>
+        ) : null}
       </Panel>
     )
   } else {

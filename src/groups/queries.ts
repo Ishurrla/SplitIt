@@ -9,7 +9,8 @@ import {
   type Timestamp,
 } from 'firebase/firestore'
 import { getDownloadURL, ref } from 'firebase/storage'
-import { db, storage } from '../lib/firebase'
+import { db } from '../lib/firebase'
+import { storage } from '../lib/firebaseServices'
 import type { ActivityEntry } from '../activity/types'
 import type { Expense } from '../expenses/types'
 import { settleUp } from '../lib/callables'

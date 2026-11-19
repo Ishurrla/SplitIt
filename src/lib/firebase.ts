@@ -1,11 +1,11 @@
 import { initializeApp } from 'firebase/app'
 import { connectAuthEmulator, getAuth } from 'firebase/auth'
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore'
-import { connectFunctionsEmulator, getFunctions } from 'firebase/functions'
-import { connectStorageEmulator, getStorage } from 'firebase/storage'
 
 // The web config is public by design: it identifies the project, it does not grant access.
 // Access is controlled by Auth plus firestore.rules and storage.rules.
+// Only Auth and Firestore live here: every screen needs them. Storage and Functions are in
+// firebaseServices.ts, so the landing and sign-in pages don't download them.
 
 function required(name: string): string {
   const value = (import.meta.env as Record<string, string | undefined>)[name]
@@ -23,20 +23,13 @@ export const app = initializeApp({
   appId: required('VITE_FIREBASE_APP_ID'),
 })
 
-// Same region as the functions (functions/src/lib/options.ts).
-export const FUNCTIONS_REGION = 'europe-west1'
-
 export const auth = getAuth(app)
 export const db = getFirestore(app)
-export const storage = getStorage(app)
-export const functions = getFunctions(app, FUNCTIONS_REGION)
 
 export const usingEmulators = import.meta.env.VITE_USE_EMULATORS === 'true'
+export const EMULATOR_HOST = '127.0.0.1'
 
 if (usingEmulators) {
-  const host = '127.0.0.1'
-  connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true })
-  connectFirestoreEmulator(db, host, 8080)
-  connectStorageEmulator(storage, host, 9199)
-  connectFunctionsEmulator(functions, host, 5001)
+  connectAuthEmulator(auth, `http://${EMULATOR_HOST}:9099`, { disableWarnings: true })
+  connectFirestoreEmulator(db, EMULATOR_HOST, 8080)
 }

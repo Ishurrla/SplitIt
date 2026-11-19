@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router'
+import { logOut } from '../auth/actions'
 import { useAuth } from '../auth/context'
 import { authUrlFor } from '../lib/safeNext'
 import { Button } from '../ui/Button'
@@ -31,8 +32,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
         <Button
           className="ml-2.5"
           onClick={() => {
-            // Loaded on demand so this guard stays free of Firebase (and testable without it).
-            void import('../auth/actions').then((m) => m.logOut())
+            void logOut()
           }}
         >
           Log out

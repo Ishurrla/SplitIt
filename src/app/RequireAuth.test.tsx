@@ -2,10 +2,13 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import type { User } from 'firebase/auth'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AuthContext, type AuthState } from '../auth/context'
 import type { UserProfile } from '../auth/profile'
 import { RequireAuth } from './RequireAuth'
+
+// The guard's Log out button signs out through Firebase; the tests don't start Firebase.
+vi.mock('../auth/actions', () => ({ logOut: vi.fn() }))
 
 afterEach(cleanup)
 

@@ -1,6 +1,6 @@
 import { ref, uploadBytes } from 'firebase/storage'
 import { updateGroup } from '../lib/callables'
-import { storage } from '../lib/firebase'
+import { storage } from '../lib/firebaseServices'
 import { newPhotoName, resizeToJpeg } from '../lib/images'
 
 /**

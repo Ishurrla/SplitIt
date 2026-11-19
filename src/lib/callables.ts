@@ -16,7 +16,7 @@ import type {
   SpendingByMonthResult,
   UpdateGroupInput,
 } from '../../functions/src/shared/schemas'
-import { functions } from './firebase'
+import { functions } from './firebaseServices'
 
 // Typed wrappers around the callable Cloud Functions. Input and result types come from the same
 // zod schemas the functions validate with (functions/src/shared/schemas.ts).
@@ -63,6 +63,13 @@ export const updateProfile = callable('updateProfile')
  * The message to show for a failed call. Our functions already write plain sentences
  * ("This invite has expired. Ask for a new one."); anything else gets a generic retry line.
  */
+/** True when the call failed for want of a connection, so trying again may work. */
+export function isConnectionError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return false
+  const code = String(error.code)
+  return code === 'functions/internal' || code === 'functions/unavailable'
+}
+
 export function callableErrorMessage(error: unknown): string {
   if (typeof error === 'object' && error !== null && 'code' in error && 'message' in error) {
     const code = String(error.code)

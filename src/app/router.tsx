@@ -1,41 +1,73 @@
-import { createBrowserRouter } from 'react-router'
+import { Outlet, createBrowserRouter } from 'react-router'
 import { AuthPage } from '../pages/AuthPage'
 import { LandingPage } from '../pages/LandingPage'
-import { ActivityPage } from '../activity/ActivityPage'
-import { GroupPage, NotFoundPage, SettlePage } from '../pages/appPages'
-import { SettingsPage } from '../settings/SettingsPage'
-import { DashboardPage } from '../pages/DashboardPage'
-import { GroupsPage } from '../pages/GroupsPage'
-import { JoinPage } from '../pages/JoinPage'
-import { AppShell } from '../shell/AppShell'
+import { NotFoundPage, RouteLoading } from '../pages/NotFoundPage'
 import { RequireAuth } from './RequireAuth'
+
+// The landing and sign-in pages ship in the first download. Every signed-in screen is loaded the
+// first time it is visited (route `lazy`), which keeps the first page small.
+
+const guarded = (
+  <RequireAuth>
+    <Outlet />
+  </RequireAuth>
+)
 
 export const router = createBrowserRouter([
   { path: '/', element: <LandingPage /> },
   { path: '/auth', element: <AuthPage /> },
   {
     path: '/join/:token',
-    element: (
-      <RequireAuth>
-        <JoinPage />
-      </RequireAuth>
-    ),
+    element: guarded,
+    HydrateFallback: RouteLoading,
+    children: [
+      {
+        index: true,
+        lazy: async () => ({ Component: (await import('../pages/JoinPage')).JoinPage }),
+      },
+    ],
   },
   {
     path: '/app',
-    element: (
-      <RequireAuth>
-        <AppShell />
-      </RequireAuth>
-    ),
+    element: guarded,
+    HydrateFallback: RouteLoading,
     children: [
-      { index: true, element: <DashboardPage /> },
-      { path: 'groups', element: <GroupsPage /> },
-      { path: 'groups/:id', element: <GroupPage /> },
-      { path: 'groups/:id/settle', element: <SettlePage /> },
-      { path: 'activity', element: <ActivityPage /> },
-      { path: 'settings', element: <SettingsPage /> },
-      { path: '*', element: <NotFoundPage /> },
+      {
+        lazy: async () => ({ Component: (await import('../shell/AppShell')).AppShell }),
+        children: [
+          {
+            index: true,
+            lazy: async () => ({
+              Component: (await import('../pages/DashboardPage')).DashboardPage,
+            }),
+          },
+          {
+            path: 'groups',
+            lazy: async () => ({ Component: (await import('../pages/GroupsPage')).GroupsPage }),
+          },
+          {
+            path: 'groups/:id',
+            lazy: async () => ({ Component: (await import('../pages/appPages')).GroupPage }),
+          },
+          {
+            path: 'groups/:id/settle',
+            lazy: async () => ({ Component: (await import('../pages/appPages')).SettlePage }),
+          },
+          {
+            path: 'activity',
+            lazy: async () => ({
+              Component: (await import('../activity/ActivityPage')).ActivityPage,
+            }),
+          },
+          {
+            path: 'settings',
+            lazy: async () => ({
+              Component: (await import('../settings/SettingsPage')).SettingsPage,
+            }),
+          },
+          { path: '*', element: <NotFoundPage inShell /> },
+        ],
+      },
     ],
   },
   { path: '*', element: <NotFoundPage /> },

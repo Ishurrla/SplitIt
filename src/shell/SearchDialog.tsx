@@ -28,6 +28,7 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
   const expenseQueries = useQueries({ queries: list.map((g) => expensesQuery(g.id)) })
   const expensesByGroup = new Map(list.map((g, i) => [g.id, expenseQueries[i]?.data ?? []]))
   const stillLoading = groups.isPending || expenseQueries.some((q) => q.isPending)
+  const failed = groups.isError || expenseQueries.some((q) => q.isError)
 
   const results = search<Group, Expense>(text, list, expensesByGroup)
   const current = Math.min(active, Math.max(0, results.length - 1))
@@ -109,6 +110,20 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
           </li>
         ) : null}
       </ul>
+      {failed ? (
+        <p role="alert" className="mt-2 text-[.88rem] text-red">
+          Some of your groups couldn&apos;t be searched.{' '}
+          <Button
+            variant="link"
+            onClick={() => {
+              void groups.refetch()
+              expenseQueries.forEach((q) => void q.refetch())
+            }}
+          >
+            Try again
+          </Button>
+        </p>
+      ) : null}
       <p className="mt-2 text-[.88rem] text-muted">
         {stillLoading
           ? 'Loading your groups and expenses…'

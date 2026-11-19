@@ -41,6 +41,12 @@ export function AppShell() {
 
   return (
     <div className="@container/shell flex min-h-screen flex-col">
+      <a
+        href="#main"
+        className="sr-only z-50 bg-biro px-4 py-2 font-semibold text-biro-ink focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+      >
+        Skip to content
+      </a>
       <div className="grid flex-1 grid-cols-[232px_minmax(0,1fr)] @max-[860px]/shell:grid-cols-1">
         <aside
           className={`sticky top-0 flex h-screen flex-col gap-1 self-start border-r-[1.5px] border-solid border-ink px-3.5 py-[22px] ${NARROW_HIDE}`}
@@ -95,7 +101,7 @@ export function AppShell() {
             </button>
             <ThemeButton labelClassName={NARROW_HIDE} />
           </header>
-          <main className="pt-[26px]">
+          <main id="main" tabIndex={-1} className="scroll-mt-20 pt-[26px] focus:outline-none">
             <Outlet />
           </main>
         </div>

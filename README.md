@@ -1,136 +1,310 @@
 # SplitIt
 
-A shared expense splitter: groups, expenses, balances and settle-up, built on Firebase.
+A shared expense splitter: groups, expenses, balances and settle-up, built on Firebase. Money is always kept as whole numbers in each currency's smallest unit (kobo, cents, yen) and is never converted between currencies.
 
-> **Status: Phase 7 (dashboard, spending chart, settings, photos).** Polish and deployment arrive in Phase 8.
+**Live site:** _not deployed yet (see [What runs where](#what-runs-where))_  
+**Try it locally in 10 minutes, including trying to read someone else's group:** [DEMO.md](DEMO.md)
+
+## Contents
+
+- [What runs where](#what-runs-where)
+- [Setup from a clean Windows machine](#setup-from-a-clean-windows-machine)
+- [Environment variables](#environment-variables)
+- [Data model](#data-model)
+- [How the security rules work](#how-the-security-rules-work)
+- [Cloud Functions](#cloud-functions)
+- [Settle-up](#settle-up)
+- [Realtime design](#realtime-design)
+- [The app, screen by screen](#the-app-screen-by-screen)
+- [Tests](#tests)
+- [Scripts](#scripts)
+- [Known limitations](#known-limitations)
+- [Docs](#docs)
 
 ## What runs where
 
-The project is on the free Spark plan, with no Blaze (billing) plan. Blaze will be reconsidered at deploy time. Until then:
+The project is on the free Spark plan. Cloud Functions and Storage need the Blaze (billing) plan, so the full app currently runs on the Firebase emulators.
 
-| Part                                      | Where it runs                                                |
-| ----------------------------------------- | ------------------------------------------------------------ |
-| Frontend (React)                          | Deployed to Vercel (from Phase 8)                            |
-| Cloud Functions (all money logic)         | **Emulator only** (needs Blaze to deploy)                    |
-| Cloud Storage (receipts, avatars, covers) | **Emulator only** (Spark has no Storage)                     |
-| Firestore and its security rules          | **Emulator only** (deployable to a free Spark project later) |
-| Authentication                            | **Emulator only**                                            |
+| Part                                  | Deployed                                    | Emulator                    |
+| ------------------------------------- | ------------------------------------------- | --------------------------- |
+| Frontend (React, Vite)                | Vercel (`vercel.json` is ready); link above | `pnpm dev`                  |
+| Authentication                        | Not yet; free on Spark                      | ✓                           |
+| Firestore and `firestore.rules`       | Not yet; free on Spark                      | ✓ (rules tested)            |
+| Cloud Storage and `storage.rules`     | Not yet; needs Blaze                        | ✓ (rules tested)            |
+| Cloud Functions (all money logic)     | Not yet; needs Blaze                        | ✓ (every callable tested)   |
+| Composite index for `spendingByMonth` | Not yet                                     | ✗ (the emulator ignores it) |
 
-The Firebase project id is `demo-splitit`. Ids that start with `demo-` only work with the emulators and can never reach real cloud services. Region (for a future deploy): `europe-west1`.
+The Firebase project id is `demo-splitit`. Ids that start with `demo-` only work with the emulators and can never reach real cloud services. Region for a deploy: `europe-west1` (Firestore, Functions and Storage).
 
-## Setup on Windows (PowerShell)
+> **The `spendingByMonth` composite index is only confirmed on a real deploy.** The dashboard's spending query (`splitUserIds` array-contains, ordered by `createdAt`) needs the index in [firestore.indexes.json](firestore.indexes.json). The emulator runs any query without indexes, so the tests can't prove the index is right. Until it has been deployed and the chart has loaded once against real Firestore, treat it as untested.
 
-You need Node 22 or newer, pnpm, Java 21 (for the Firestore emulator) and the Firebase CLI.
+## Setup from a clean Windows machine
 
-```powershell
-node --version
-pnpm --version
-java -version
-npm install -g firebase-tools
-pnpm install
-Copy-Item .env.example .env.local
-```
+PowerShell, one command per line.
 
-Run the emulators in one terminal and the app in another:
+1. **Node 22 or newer**, from https://nodejs.org (the LTS installer). Then turn on pnpm, which comes with Node:
 
-```powershell
-pnpm emulators
-```
+   ```powershell
+   corepack enable pnpm
+   ```
 
-```powershell
-pnpm dev
-```
+2. **Java 21**, which the Firestore and Storage emulators need. Install it from https://adoptium.net (Temurin 21) and tick "Set JAVA_HOME". Open a new terminal and check:
 
-The Emulator UI is at http://127.0.0.1:4000.
+   ```powershell
+   java -version
+   ```
+
+3. **Firebase CLI:**
+
+   ```powershell
+   npm install -g firebase-tools
+   ```
+
+   ```powershell
+   firebase --version
+   ```
+
+   You don't need `firebase login` for the emulators, because `demo-` projects don't use an account. You will need it to deploy:
+
+   ```powershell
+   firebase login
+   ```
+
+4. **The project:**
+
+   ```powershell
+   pnpm install
+   ```
+
+   ```powershell
+   Copy-Item .env.example .env.local
+   ```
+
+5. **Run it.** In one terminal, start the emulators. This builds the functions first. Wait for "All emulators ready".
+
+   ```powershell
+   pnpm emulators
+   ```
+
+   In a second terminal, add the demo data and start the app:
+
+   ```powershell
+   pnpm seed
+   ```
+
+   ```powershell
+   pnpm dev
+   ```
+
+   The app is at http://localhost:5173 and the Emulator UI at http://127.0.0.1:4000. `pnpm seed` prints the demo logins.
 
 > PowerShell tip: quote comma lists passed to the Firebase CLI, for example `firebase emulators:start --only "firestore,storage"`. Without quotes, PowerShell turns `firestore,storage` into an array.
 
-## Sign-in and routes
+## Environment variables
 
-- Email and password, plus Google. Google opens a popup on desktop and a full-page redirect on touch screens (or when the popup is blocked). With the emulators, Google sign-in shows the Auth emulator's fake account picker.
-- On first sign-in the app creates `users/{uid}` itself. The rules check that the email and photo match the sign-in.
-- Routes: `/` landing, `/auth`, `/app` (dashboard), `/app/groups`, `/app/groups/:id`, `/app/groups/:id/settle`, `/app/activity`, `/app/settings`, `/join/:token`. Everything under `/app` and `/join` needs sign-in. A signed-out visitor is sent to `/auth?next=…` and comes back to the same page afterwards. `next` only accepts paths inside the app, so it can't send anyone to another site.
-- A group you are not in, and a group that doesn't exist, both show "You're not in this group." Firestore answers `permission-denied` in both cases, so the app can't tell them apart either.
+Vite reads `.env.local`, which git ignores. [.env.example](.env.example) has every variable, with values that work for the emulators.
 
-### Before deploying: authorised domains
+| Variable                       | What it is                                                                             |
+| ------------------------------ | -------------------------------------------------------------------------------------- |
+| `VITE_FIREBASE_PROJECT_ID`     | `demo-splitit` for the emulators, the real project id after deploy                     |
+| `VITE_FIREBASE_API_KEY`        | Web API key from the Firebase console (any value works on the emulators)               |
+| `VITE_FIREBASE_AUTH_DOMAIN`    | `<project>.firebaseapp.com`                                                            |
+| `VITE_FIREBASE_STORAGE_BUCKET` | `<project>.appspot.com`                                                                |
+| `VITE_FIREBASE_APP_ID`         | Web app id from the Firebase console                                                   |
+| `VITE_USE_EMULATORS`           | `true` to connect Auth, Firestore, Storage and Functions to the emulators on 127.0.0.1 |
 
-Google sign-in only works on domains listed in Firebase. When the Vercel site exists (Phase 8), add its domain in the Firebase console: **Authentication → Settings → Authorized domains → Add domain** (for example `splitit.vercel.app`). See decision log entry 11 for the redirect flow on Safari.
+These are the Firebase web config, which is public by design: it ships to every browser, and the security rules are what protect the data. **There is no service account key anywhere in this project, and there must never be one.** The functions use the Admin SDK's built-in credentials when deployed, and the emulator otherwise.
 
-## Groups and invites
+## Data model
 
-- **Create a group** with a name, a currency (fixed once the first expense is added) and an illustrated cover or your own photo. Photos are shrunk in the browser to at most 1600px JPEG before upload.
-- **Invite** with the group's link (reusable for 7 days; the same link is handed out while it has more than a day left) or with a personal invite for one email address (works once, only for that address). SplitIt doesn't send emails yet, so you send the link yourself. Any member can invite; only the owner sees the pending list.
-- **Join** at `/join/:token`. Before joining you see only the group's name and who invited you. The screen also handles expired, used, wrong-email, full and already-a-member links.
-- **Leave or remove** someone only when their balance is zero. Their name stays on old expenses. The last member leaving deletes the group.
-- A group has at most 50 members.
+![Data model](docs/data-model.png)
 
-## Expenses
+The full field list, and who can read and write each collection, is in [docs/data-model.md](docs/data-model.md) (diagram source: [docs/data-model.mmd](docs/data-model.mmd)).
 
-- **Add or edit** with a title, an amount, who paid, and who it was for, split equally or in custom amounts that must add up to the total. In an equal split that doesn't divide evenly, the odd kobo (or cent, or yen) goes to the first names in the list, so the shares always add up to the total.
-- **Money is parsed from text to whole minor units without floats** (`src/lib/money.ts`): `1,250.50` is 125050 kobo, yen takes no decimals, and wrong grouping, too many decimals, zero and absurd amounts are refused with a sentence that says what to fix.
-- **Only the person who added an expense can edit or delete it.** Others see "Only Ada can edit or delete this." Expenses involving someone who has left can't be changed at all.
-- **Receipts** are resized in the browser to at most 1600px JPEG, uploaded to `receipts/{group}/{expense}/` (members only), and opened from the camera icon in the ledger.
-- **Balances** are kept on the group by `saveExpense` and `deleteExpense`, in the same transaction as the expense.
+In short:
 
-## Balances, settle-up and payments
+- `users/{uid}`: your profile, readable only by you.
+- `groups/{gid}`: name, currency, cover, `memberIds`, and `balances` (one integer per member, always summing to zero).
+- `groups/{gid}/members/{uid}`: role, plus a copy of the member's name and photo so that group screens never read other people's profiles.
+- `groups/{gid}/expenses/{eid}`: `amountMinor`, `paidBy`, `splits` (uid to minor units), `splitUserIds`.
+- `groups/{gid}/payments/{pid}` and `groups/{gid}/activity/{aid}`: append-only.
+- `invites/{token}`: the document id is the secret.
 
-- **Balances** live on the group: one integer per member, in minor units, always adding up to zero. Only `saveExpense`, `deleteExpense` and `recordPayment` change them, each in the same transaction as the change itself.
-- **Settle-up** is worked out by the `settleUp` function; the browser only displays the result. It uses the greedy "largest creditor pays largest debtor" method: match whoever is owed the most with whoever owes the most, for the smaller of the two amounts, and repeat. Each payment clears at least one person, so a group of n people needs at most n − 1 payments. Ties are broken by uid, so everyone sees the same plan.
-- **Why greedy?** Finding the truly fewest payments is NP-hard: it means finding groups of people whose balances cancel out among themselves (a subset-sum problem), and the work grows exponentially with the group. Greedy is fast, never worse than n − 1, and for real groups usually optimal or one payment away.
-- **Payments** can be full or partial. Only the payer or the receiver can record one, it can never be more than is owed at that moment, and it can't be edited or deleted afterwards.
-- **`recomputeBalances`** (owner only) rebuilds the balances from every expense and payment and corrects them if they ever differ. The tests check it matches after a mix of expenses, edits, deletes and payments.
+## How the security rules work
 
-## Realtime, activity and search
+[firestore.rules](firestore.rules) and [storage.rules](storage.rules) follow one idea: **clients may read what belongs to groups they are in, and may write only their own profile.** Everything else is written by Cloud Functions through the Admin SDK, which skips the rules and does its own checks.
 
-- **Live updates.** An open group (its page or its settle-up screen) keeps four Firestore `onSnapshot` listeners: the group document (balances, members, name), its expenses, its payments and its activity, newest first and limited (500, 500 and 50). They write straight into TanStack Query's cache, so every part of the page updates together, without refreshing. A small reference-counted registry starts each group's listeners once and stops them when you leave the group's pages, so moving around never leaves a duplicate running.
-- **What you see.** New rows get the highlighter sweep. When someone else changes something, a short note names them ("Bayo Lawal added Taxi back to Lekki ₦6,500."). When balances change, the settle-up plan is fetched again from the `settleUp` function.
-- **Losing access.** If you are removed (or the group is deleted) while it is open, the listeners are refused with `permission-denied` and the page switches to "You're not in this group any more." instead of breaking.
-- **Activity page.** A timeline of the latest entries from each of your groups' `activity` subcollections, with All, Expenses, Payments and Group activity filters.
-- **Search (Ctrl+K or ⌘K) is client-side.** Firestore has no substring search, so the search box loads your groups and each group's latest 500 expenses into the browser and matches there: every word you type must appear, case and accents ignored. It can only find what you can already read, and it doesn't search older expenses or anything on the server.
+### Helpers
 
-## Dashboard, settings and photos
+- `isSignedIn()`: there is a signed-in user.
+- `isMember(gid)`: `groups/{gid}/members/{your uid}` exists. This costs one document read. The member document's id is the uid, so `exists()` is enough.
+- `isOwner(gid)`: that member document says `role == 'owner'` (one `get()`).
+- `isSelf(uid)`: the document is yours.
 
-- **Totals** (you owe, owed to you, net) come from each group's stored balance and are shown **one line per currency**. Amounts in different currencies are never added together or converted.
-- **Spending chart:** your share of expenses per month for the last six months, worked out by the `spendingByMonth` function from the real expenses (only `splits[you]`, never the whole amount). One tab per currency. Past months are hatched, the current month is blue, and screen readers get every month's figure.
-- **Quick actions:** add an expense or invite (pick a group first), create a group, or jump to the group where you owe (or are owed) the most.
-- **Settings:** your name and photo go through `updateProfile`, so every group sees the change. Reminders and default currency are saved straight to your profile. There's also the theme switch and log out.
-- **Avatars** show your uploaded photo, then your Google photo, then an illustration picked by a stable hash of your uid.
+### Each rule in plain words
+
+| Path                                    | Read                                        | Write                                                                                                                                                                         |
+| --------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `users/{uid}`                           | only you                                    | You create it once, on first sign-in, and its email and photo must match your sign-in. After that you can change only `defaultCurrency` and `weeklyReminders`. Never deleted. |
+| `groups/{gid}`                          | if your uid is in its `memberIds`           | never (functions only)                                                                                                                                                        |
+| `groups/{gid}/members/*`                | members                                     | never: a client could otherwise make itself owner                                                                                                                             |
+| `groups/{gid}/expenses/*`, `payments/*` | members                                     | never                                                                                                                                                                         |
+| `groups/{gid}/activity/*`               | members                                     | never                                                                                                                                                                         |
+| `invites/{token}`                       | the group's owner (to list pending invites) | never. People holding a link call `invitePreview`, which returns only the group's name and the inviter's name.                                                                |
+| anything else                           | no                                          | no                                                                                                                                                                            |
+| Storage `receipts/{gid}/{eid}/*`        | members                                     | Members upload JPEG, PNG or WebP under 5 MB. Nobody deletes (functions do).                                                                                                   |
+| Storage `covers/{gid}/*`                | members                                     | the owner; images under 5 MB                                                                                                                                                  |
+| Storage `avatars/{uid}/*`               | anyone (so avatars load everywhere)         | only you; images under 5 MB                                                                                                                                                   |
+
+Group reads check `memberIds` on the document instead of calling `isMember()`. The groups list runs `where('memberIds', 'array-contains', uid)`, and Firestore only allows a query if it can prove the rule from the query itself (decision log 4). A group that doesn't exist and a group you aren't in are both refused the same way, so the app can't tell them apart, and neither can an attacker.
+
+### Why clients can't write money data
+
+If the browser could write balances or expenses, any member could set their own debt to zero or invent an expense, and no rule can work out whether a split adds up correctly or whether a payment exceeds what is owed. So:
+
+- every expense, edit, delete and payment is a callable function;
+- the function re-checks membership;
+- its zod schema validates the input;
+- it changes the balances by the difference, in the same Firestore transaction as the change.
+
+The rules then just say `allow write: if false`, which is easy to read and to test.
+
+### Run the rule tests
+
+```powershell
+pnpm test:rules
+```
+
+This starts the Firestore and Storage emulators, runs 126 checks and prints a pass/fail table. Among other things, they check that:
+
+- an outsider can't read or write anything in another group;
+- even an owner can't write members, balances or expenses directly;
+- uploads must be small raster images, so SVG is refused;
+- signed-out visitors get nothing.
+
+To try it by hand in the browser, see [DEMO.md](DEMO.md).
+
+## Cloud Functions
+
+All callable (`onCall`, 2nd gen, Node 22, `europe-west1`), in [functions/src](functions/src). Each one:
+
+- requires sign-in;
+- validates its input with a zod schema shared with the client forms ([functions/src/shared/schemas.ts](functions/src/shared/schemas.ts));
+- re-checks membership with the Admin SDK;
+- writes in a transaction, together with an activity entry.
+
+| Function                                        | Does                                                                                                                                                                                                                              |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createGroup`, `updateGroup`                    | New group with you as owner. Rename it or change the cover; an old uploaded cover is deleted.                                                                                                                                     |
+| `createInvite`, `invitePreview`, `acceptInvite` | A reusable link (7 days) or a personal invite for one email. The preview shows only the group name and inviter. Accepting adds you to the members and to `memberIds` together.                                                    |
+| `leaveGroup`, `removeMember`                    | Only with a zero balance. The last member to leave deletes the group.                                                                                                                                                             |
+| `saveExpense`, `deleteExpense`                  | Splits must add up to the amount exactly, in integer minor units. Only the person who added the expense can change it. Balances move by the difference. Expenses involving someone who has left are frozen.                       |
+| `recordPayment`                                 | Only the payer or receiver can record it. Inside the transaction, the amount is capped at the smaller of what the payer owes and what the receiver is owed, so two payments at the same moment can't overpay (tested with races). |
+| `settleUp`                                      | Works out the plan (see below). Reads only.                                                                                                                                                                                       |
+| `recomputeBalances`                             | Owner only. Rebuilds balances from every expense and payment, and corrects them if they differ.                                                                                                                                   |
+| `spendingByMonth`                               | Your share (`splits[you]`) of expenses per month, per currency, in your time zone. Needs the composite index (see above).                                                                                                         |
+| `updateProfile`                                 | Name and photo: updates `users/{uid}` and the copy on every `members` document, in batches. Deletes the old photo.                                                                                                                |
+
+## Settle-up
+
+Each group's balances are integers that add up to zero. The settle-up plan is worked out by the `settleUp` function; the browser only shows it. It is greedy: match whoever is owed the most with whoever owes the most, for the smaller of the two amounts, and repeat. Each payment clears at least one person, so n people need at most n − 1 payments. Ties are broken by uid, so everyone sees the same plan.
+
+Finding the truly fewest payments is NP-hard: it means finding groups of people whose balances cancel out among themselves, which is a subset-sum problem. Greedy is fast, never needs more than n − 1 payments, and for real groups is usually optimal or one payment off.
+
+The tests check that:
+
+- the payments bring every balance to zero;
+- every amount is a positive integer;
+- there are at most n − 1 payments;
+- ties give the same plan;
+- people who have left are excluded.
+
+Payments can be partial. They are pooled per person, so the limit is "what you owe overall", not "what you owe Ada" (see limitations).
+
+## Realtime design
+
+- **An open group has four `onSnapshot` listeners:** the group document (balances, members, name), its expenses, its payments and its activity, newest first and limited to 500, 500 and 50. They write straight into TanStack Query's cache, so every part of the page updates together.
+- **No duplicate listeners.** A small reference-counted registry ([src/live/registry.ts](src/live/registry.ts)) starts a group's listeners once, however many components need them, and stops them when you leave the group's pages. In development, `window.__splitit.openListeners()` reports how many are open.
+- **What you see.** New rows get a highlighter sweep. When someone else changes something, a short note names them. When balances change, the settle-up plan is fetched again.
+- **Losing access.** If you are removed, or the group is deleted, while the page is open, the listeners are refused with `permission-denied`. The page then switches to "You're not in this group any more." instead of breaking.
+- **Search (Ctrl+K or ⌘K) is client-side.** Firestore has no substring search, so the search box loads your groups and each one's latest 500 expenses into the browser and matches there, ignoring case and accents. It can only find what you can already read.
+- **Offline.** A bar says when the browser is offline. Firestore keeps showing what it already loaded, but nothing can be saved, because every change goes through a function. The listeners catch up when the connection returns.
+
+## The app, screen by screen
+
+- **Sign-in:** email and password, or Google. Google uses a popup on desktop and a full-page redirect on touch screens. Signed-out visitors are sent to `/auth?next=…` and come back to where they were heading; `next` only accepts paths inside the app.
+- **Dashboard:**
+  - Tiles for what you owe, what you're owed and your net balance, one line per currency, never added across currencies.
+  - Your spending per month.
+  - Quick actions and your groups.
+- **Group:**
+  - The ledger, with each row showing your share.
+  - Where everyone stands, and the settle-up plan.
+  - Recent activity and the member list.
+  - Invites, cover photo, and leave or remove members.
+- **Settle up:** one card per payment, with "Record payment" (if you pay) or "Mark as received" (if you're paid) for a full or partial payment.
+- **Activity:** a timeline of all your groups, filterable.
+- **Settings:**
+  - Name and photo, which go through `updateProfile`.
+  - Reminder setting, theme, default currency and log out.
+  - Avatars show your uploaded photo, then your Google photo, then an illustration chosen by a hash of your uid.
+
+**Accessibility and polish:**
+
+- Every dialog traps focus, closes on Esc and puts focus back on the button that opened it.
+- There is a skip link, and every screen works by keyboard.
+- Reduced-motion settings turn the animations off.
+- Every screen has a dark theme, which follows the system until you choose one.
+- Loading shows skeletons, failures show "Try again", and empty lists say what to do next.
+
+**Bundle:** each signed-in screen is loaded the first time it's opened, and the big libraries (Firestore, Firebase, React, TanStack Query) get their own files. No file is over Vite's 500 kB warning.
 
 ## Tests
 
-| Command               | What it proves                                                                                                                                                                                                                                                                                                                               | Needs                                         |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `pnpm test`           | Unit and component tests: money parsing, formatting and equal splits, balance arithmetic (with a 500-step random check), image checks, and components in jsdom: the route guard, the money input and the expense form's split totals                                                                                                         | nothing                                       |
-| `pnpm test:rules`     | 126 checks on `firestore.rules` and `storage.rules`. An outsider (B) can't read or write anything in A's group, including members, expenses, payments, activity, invites, receipts and A's profile. Even the owner can't write money data directly. Signed-out visitors get nothing.                                                         | Java (starts Firestore and Storage emulators) |
-| `pnpm test:functions` | Every callable, called through the client SDK: profile (including old photos deleted), groups, invites, membership, expenses (balances rebuilt from raw expenses after every change), payments (overpaying refused even when payments race), and `spendingByMonth` (my share only, yen, several currencies, edits and deletes, older months) | Java (starts all emulators)                   |
+| Command               | What it proves                                                                                                                                                                                                                                                                                           | Needs                                         |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `pnpm test`           | Unit and component tests: money parsing, formatting and equal splits, balance arithmetic (with a 500-step random check), settle-up, chart scale, search, image checks. Components in jsdom: the route guard, the money input and the expense form's split totals.                                        | nothing                                       |
+| `pnpm test:rules`     | 126 checks on `firestore.rules` and `storage.rules` (see above)                                                                                                                                                                                                                                          | Java (starts Firestore and Storage emulators) |
+| `pnpm test:functions` | Every callable, called through the client SDK, covering profile, groups, invites, membership, expenses (balances rebuilt from raw expenses after every change), payments (overpaying refused even when payments race), and `spendingByMonth` (my share only, yen, several currencies, edits and deletes) | Java (starts all emulators)                   |
 
-Both emulator suites start and stop the emulators themselves and print a pass/fail table at the end. Don't run them while `pnpm emulators` is already running: the ports clash.
+The emulator suites start and stop their own emulators and print a pass/fail table. Stop `pnpm emulators` first, because the ports clash.
 
 ## Scripts
 
-| Command          | What it does                                                                                                                              |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`       | Vite dev server                                                                                                                           |
-| `pnpm build`     | Typecheck and build to `dist/`                                                                                                            |
-| `pnpm typecheck` | TypeScript for the app, tests and `functions/`                                                                                            |
-| `pnpm lint`      | ESLint (type-aware)                                                                                                                       |
-| `pnpm format`    | Prettier                                                                                                                                  |
-| `pnpm emulators` | Build the functions and start all emulators                                                                                               |
-| `pnpm diagram`   | Re-render `docs/data-model.png` from `docs/data-model.mmd` (uses your installed Chrome; edit `docs/puppeteer.json` if it lives elsewhere) |
+| Command          | What it does                                                                                                                                |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`       | Vite dev server                                                                                                                             |
+| `pnpm build`     | Typecheck and build to `dist/`                                                                                                              |
+| `pnpm typecheck` | TypeScript for the app, tests and `functions/`                                                                                              |
+| `pnpm lint`      | ESLint (type-aware)                                                                                                                         |
+| `pnpm format`    | Prettier                                                                                                                                    |
+| `pnpm emulators` | Build the functions and start all emulators                                                                                                 |
+| `pnpm seed`      | Wipe the emulators and create 3 people and 2 groups (NGN and JPY) through the real functions. Refuses anything but local `demo-` emulators. |
+| `pnpm diagram`   | Re-render `docs/data-model.png` from `docs/data-model.mmd` (uses your installed Chrome)                                                     |
+
+### Before deploying: authorised domains
+
+Google sign-in only works on domains listed in Firebase. Once the Vercel site exists, add its domain under **Authentication → Settings → Authorized domains** (decision log 11).
 
 ## Known limitations
 
-- **Expenses involving someone who left are frozen.** You can only leave a group with a zero balance, but your name stays on old expenses. Editing or deleting one of those would give you a balance again after you'd gone, with no way to settle it, so both are refused and the ledger says why ("Bayo has left the group, so this can no longer be changed."). To change one, the person has to rejoin first.
-- **A receipt can be left behind in Storage.** To attach a receipt, the photo is uploaded before the expense is saved (the save checks it exists). If the upload works but the save then fails, the photo stays in `receipts/{group}/{expense}/` with nothing pointing to it. The rules don't let clients delete receipts, so cleaning these up would need a scheduled function. Replacing, removing or deleting a receipt through the app does delete the old file.
-- **Payments are pooled per person.** "What Bayo owes Ada" isn't stored; the limit for a payment is the smaller of what the payer owes and what the receiver is owed overall.
+- **The `spendingByMonth` composite index is unconfirmed until a real deploy** (see [What runs where](#what-runs-where)).
+- **Expenses involving someone who left are frozen.** You can only leave with a zero balance, but your name stays on old expenses. Editing or deleting one would give you a balance after you'd gone, with no way to settle it, so both are refused, and the ledger says why. To change one, that person has to rejoin first.
+- **A receipt can be left behind in Storage.** The photo is uploaded before the expense is saved, and the save checks that it exists. If the upload works but the save fails, the photo stays with nothing pointing to it. Clients can't delete receipts, so cleaning these up would need a scheduled function. Replacing or removing a receipt through the app does delete the old file.
+- **Payments are pooled per person.** "What Bayo owes Ada" isn't stored. The limit for a payment is the smaller of what the payer owes and what the receiver is owed overall.
 - **Settle-up is greedy**, not guaranteed minimal (see above).
-- **No email is sent** for invites yet. You send the personal link yourself.
-- **Long histories are cut off.** The ledger shows a group's latest 500 expenses and 500 payments, so in a bigger group the ledger's "Total spent" covers only those. Balances are always complete, because they are stored on the group, not added up in the browser. The Activity page shows the latest 50 entries per group.
-- **The spending chart uses the date an expense was added**, since expenses have no separate "date spent". It also needs a composite index (in `firestore.indexes.json`) that the emulator doesn't check.
-- **Search only covers what is loaded:** your groups and their latest 500 expenses each, matched in the browser.
+- **No email is sent** for invites. You send the link yourself.
+- **Long histories are cut off.**
+  - The ledger shows a group's latest 500 expenses and 500 payments, so in a big group its "Total spent" covers only those.
+  - Balances are always complete, because they're stored, not added up in the browser.
+  - The Activity page shows the latest 50 entries per group.
+- **The spending chart uses the date an expense was added**, because there is no separate "date spent".
+- **Search only covers what is loaded:** your groups and their latest 500 expenses each.
+- **Offline, nothing can be saved.** The app says so, rather than queueing changes.
 
 ## Docs
 
+- [DEMO.md](DEMO.md): run it locally and try to read another group's data
 - [Data model and access table](docs/data-model.md)
 - [Decision log](docs/decision-log.md)
 - Rules: [firestore.rules](firestore.rules), [storage.rules](storage.rules)

@@ -195,3 +195,23 @@ Short entries: what happened, what was tried, what was chosen and why. Newest at
 - The order is uploaded photo, then Google photo, then the illustration picked by a hash of the uid. Avatars appear everywhere, including the expense form, which is tested in jsdom without Firebase.
 - `avatars/` is public-read in storage.rules, so the download URL can be built from the path alone. That keeps `Avatar` free of Firebase, lets it try each source in order and fall back on a load error, and makes the order a small pure function with tests. Receipts and covers are private and still use `getDownloadURL`.
 - `updateProfile` now also deletes the previous photo file when it is replaced or removed (tested).
+
+## Phase 8
+
+### 31. The bundle warning: lazy routes, then vendor files, and one surprise
+
+- The build was one 1,178 kB file. Loading each signed-in screen on first visit (route `lazy`) and moving Storage and Functions out of `firebase.ts` (into `firebaseServices.ts`, used only by screens that upload or call functions) cut the first file to 872 kB. The warning stayed.
+- A source-map count showed what was left: Firestore, React, Firebase Auth, and `re2js` (263 kB of source). Nothing in SplitIt imports `re2js`; it comes with `@firebase/firestore`. So it can't be removed, only separated.
+- Chose vendor groups in `vite.config.ts` (Firestore, re2js, other Firebase, React, TanStack Query). The largest file is now Firestore at 352 kB, the app's own first file is 32 kB, and library files keep their cache across app releases. The group for `re2js` only took effect with a higher priority, because under pnpm it is reached through Firestore's own `node_modules`.
+- The same build also warned that `RequireAuth`'s on-demand import of `auth/actions` did nothing, since the sign-in page imports it anyway. It is now a plain import, and the guard's component test mocks it instead.
+
+### 32. The seed goes through the real functions, and the console helpers go through the real rules
+
+- `pnpm seed` signs each demo person in and calls `createGroup`, `acceptInvite`, `saveExpense` and `recordPayment`, instead of writing documents with admin access. Slower, but the balances, members and activity are exactly what the app would produce, and a broken function breaks the seed. The printed balances were checked by hand (Lekki: Ada +6,244,141 kobo; Tokyo: Ada +¥37,324; both sum to zero).
+- For the reviewer's "try to read another group", `__splitit.read/write/create/remove` in the dev console use the page's own Firestore client and sign-in, so the rules decide, unlike the Emulator UI, which bypasses them (DEMO.md says so). They are loaded only when `import.meta.env.DEV` is true and are absent from the production build.
+
+## The three entries worth reading first
+
+1. **24, proving the transaction is what stops overpayment.** A test that passed with the safeguard removed proved nothing. Taking the transaction out and watching the race tests fail, after making the race real, is what proved it.
+2. **26, "removed while viewing" showed the wrong message.** A bug that only a two-window test could show: four listeners refused at once, and the last one rewrote what the first had decided.
+3. **4, group reads use `memberIds`, subcollections use `isMember()`.** The rules decision that the rest of the data model is built around: Firestore only allows a query whose rule it can prove from the query itself.
