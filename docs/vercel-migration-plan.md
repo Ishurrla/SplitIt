@@ -1,6 +1,6 @@
 # Plan: the full app live on Spark + Vercel
 
-Status: **approved and implemented** (decision log 34). Differences from this plan: the rate limit defaults to 120 calls a minute rather than 60, and `vercel build` could not run on this machine (Windows refuses its symlinks without Developer Mode), so the production entry was checked by bundling it separately (decision log 34).
+Status: **approved and implemented** (decision log 34). Differences from this plan: the rate limit defaults to 120 calls a minute rather than 60, and Node is pinned to 24.x. `vercel build` ran locally without a login, and its function output was tested against the emulators (decision log 34).
 
 ## Goal
 

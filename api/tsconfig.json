@@ -1,0 +1,9 @@
+{
+  // Vercel type-checks api/[name].ts with the nearest tsconfig.json. Without this file that is the
+  // root one, which only lists sub-projects, so the check ran without Node types or ES2023.
+  "extends": "../tsconfig.server.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "../node_modules/.tmp/tsconfig.api.tsbuildinfo"
+  },
+  "include": [".", "../server"]
+}

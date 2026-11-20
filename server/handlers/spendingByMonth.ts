@@ -26,7 +26,7 @@ export const spendingByMonth = defineHandler<SpendingByMonthResult>(async (reque
 
   const db = getFirestore()
   const groups = await db.collection('groups').where('memberIds', 'array-contains', uid).get()
-  const currencies = [...new Set(groups.docs.map((g) => (g.data() as GroupDoc).currency))]
+  const currencies = [...new Set<string>(groups.docs.map((g) => (g.data() as GroupDoc).currency))]
 
   const perGroup = await Promise.all(
     groups.docs.map(async (g) => {

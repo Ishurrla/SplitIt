@@ -57,7 +57,7 @@ Firestore and the Vercel function are in the same city, because each API call ma
 
 PowerShell, one command per line.
 
-1. **Node 22 or newer**, from https://nodejs.org (the LTS installer). Then turn on pnpm, which comes with Node:
+1. **Node 24**, from https://nodejs.org (the LTS installer). Vercel runs the API on Node 24 too (`engines` in package.json). Then turn on pnpm, which comes with Node:
 
    ```powershell
    corepack enable pnpm

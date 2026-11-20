@@ -256,9 +256,13 @@ Short entries: what happened, what was tried, what was chosen and why. Newest at
   - The token tests start from a real emulator token and change one claim. A hand-made token failed for the wrong reason: in emulator mode, `verifyIdToken` also checks the account exists and the token isn't older than the account.
 - **Mutation check, repeated.** The race tests passed three runs in a row. With recordPayment's transaction replaced by plain reads and writes, exactly the three race tests failed and the other 17 passed; with the transaction restored, the full suite passes again.
 - **The production path.**
-  - `vercel build` couldn't run on this machine: the CLI installs its builders with symlinks, which Windows refuses (EPERM) without Developer Mode, and there is no WSL or Docker.
-  - Instead, `api/[name].ts` was bundled on its own with Vite's SSR build (TypeScript compiled, our code bundled, `node_modules` external, as Vercel packages it). The bundled file's exported `POST`/`GET` were then called with Web `Request`s against the emulators: 16 checks across groups, invites, expenses, payments, settle-up, spending, refusals and tokens all passed.
-  - What that doesn't cover is Vercel's own builder and runtime.
+  - The first `vercel build` attempt failed: the CLI installs its builders with symlinks, which Windows refused (EPERM). As a stopgap, `api/[name].ts` was bundled on its own with Vite's SSR build and called with Web `Request`s against the emulators: 16 checks passed.
+  - A later `vercel build` worked. It ran without a Vercel login, from a local `.vercel/project.json` (git-ignored) that copies `vercel.json`. It found three problems the Vite bundle could not:
+    - **Node version.** `"engines": ">=22"` made Vercel pick `nodejs26.x`, a version never tested here. It is now `24.x`, the version every test ran on.
+    - **Routing.** Vercel routes `/api/createGroup` to `/api/[name]?name=createGroup`, so the entry reads the `name` query first and falls back to the last path segment.
+    - **Type checking.** Vercel type-checks the function with the nearest `tsconfig.json`, which was the root one (references only, no options). `api/tsconfig.json` now extends the server config. Its own TypeScript also inferred `unknown[]` for a `Set` spread in `spendingByMonth`, so that `Set` now has an explicit `<string>`.
+  - After the fixes, the build is clean: one function, `nodejs24.x`, only the `firebase-admin` and `zod` dependency trees traced in, and the SPA rewrite skips `/api`. The function file Vercel built, `.vercel/output/functions/api/[name].func/api/[name].js`, was then called against the emulators with Vercel's routed URL form: the same 16 checks all passed.
+  - Still untested: Vercel's runtime wrapper around that file, and real Firebase.
 - **Region.** Firestore `europe-west3` and Vercel `fra1`, both in Frankfurt, because each call makes several Firestore round trips. The old `REGION` constant only applied to Cloud Functions and is gone.
 - **Removed:** the preview-site mode (`build:site`, the notice, `VITE_README_URL`). The landing footer and Settings now say plainly what is emulator-only.
 

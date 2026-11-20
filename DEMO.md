@@ -6,7 +6,7 @@ About 10 minutes. Everything runs on your machine against the Firebase emulators
 
 ## 1. Start it
 
-You need Node 22+, pnpm, Java 21 and the Firebase CLI (`npm install -g firebase-tools`). In the project folder:
+You need Node 24, pnpm, Java 21 and the Firebase CLI (`npm install -g firebase-tools`). In the project folder:
 
 ```powershell
 pnpm install
