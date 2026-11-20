@@ -8,9 +8,8 @@ import {
   where,
   type Timestamp,
 } from 'firebase/firestore'
-import { getDownloadURL, ref } from 'firebase/storage'
 import { db } from '../lib/firebase'
-import { storage } from '../lib/firebaseServices'
+import { STORAGE_UPLOADS, downloadUrl } from '../lib/uploads'
 import type { ActivityEntry } from '../activity/types'
 import type { Expense } from '../expenses/types'
 import { settleUp } from '../lib/callables'
@@ -110,13 +109,16 @@ export function usePendingInvites(groupId: string, enabled: boolean) {
   })
 }
 
-/** A download URL for a Storage path the rules let me read (covers now; receipts and avatars later). */
+/**
+ * A download URL for a Storage path the rules let me read (covers and receipts). Never asks when
+ * uploads are off (the live site), so callers fall back to the illustration.
+ */
 export function useStorageUrl(path: string | null) {
   return useQuery({
     queryKey: keys.storageUrl(path ?? ''),
-    enabled: path !== null,
+    enabled: path !== null && STORAGE_UPLOADS,
     staleTime: Number.POSITIVE_INFINITY, // a path never changes content: new uploads get new names
-    queryFn: () => getDownloadURL(ref(storage, path ?? '')),
+    queryFn: () => downloadUrl(path ?? ''),
   })
 }
 

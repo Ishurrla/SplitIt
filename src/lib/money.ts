@@ -1,6 +1,6 @@
 // The one place that knows about currencies and money.
-// Two identical copies: src/lib/money.ts (client) and functions/src/lib/money.ts (Cloud Functions).
-// functions/src/lib/money.sync.test.ts fails if they differ, so edit one and copy it over.
+// Two identical copies: src/lib/money.ts (client) and server/lib/money.ts (the API).
+// server/lib/money.sync.test.ts fails if they differ, so edit one and copy it over.
 //
 // Every amount in SplitIt is an integer in the currency's smallest unit (kobo, cents, pence, yen).
 // Floats are never used for money: text is parsed digit by digit into integers.

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type SyntheticEvent } from 'react'
-import { expenseTitle } from '../../functions/src/shared/schemas'
+import { expenseTitle } from '../../server/shared/schemas'
 import { ACCEPT_ATTR, imageProblem } from '../lib/images'
+import { UPLOADS_NOTE } from '../lib/uploads'
 import {
   CURRENCIES,
   formatMinor,
@@ -37,6 +38,8 @@ interface ExpenseFormProps {
   /** Current members, in the order they joined: equal splits give odd units to the first ones. */
   members: readonly FormMember[]
   me: string
+  /** Offer a receipt photo. Off where uploads aren't available (src/lib/uploads.ts). */
+  receipts?: boolean
   /** When editing: the saved expense, and a URL for its receipt photo if it has one. */
   initial?: {
     title: string
@@ -77,6 +80,7 @@ export function ExpenseForm({
   currency,
   members,
   me,
+  receipts = false,
   initial,
   submitLabel,
   busy = false,
@@ -369,7 +373,12 @@ export function ExpenseForm({
           Receipt photo (optional)
         </span>
       </div>
-      <div aria-labelledby={receiptLabelId} className="mt-2.5 flex items-center gap-4">
+      {receipts ? null : <p className="mt-2.5 text-[.88rem] text-muted">{UPLOADS_NOTE}</p>}
+      <div
+        aria-labelledby={receiptLabelId}
+        hidden={!receipts}
+        className="mt-2.5 flex items-center gap-4"
+      >
         {receipt.kind === 'none' ? (
           <div>
             <Button

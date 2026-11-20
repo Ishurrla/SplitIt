@@ -7,8 +7,6 @@ import { AuthProvider } from './auth/AuthProvider'
 import './fonts.ts'
 import './index.css'
 import { queryClient } from './lib/queryClient'
-import { PREVIEW_SITE } from './lib/site'
-import { SiteNotice } from './pages/PreviewSite'
 import { OfflineNotice } from './ui/OfflineNotice'
 import { ToastProvider } from './ui/ToastProvider'
 
@@ -23,7 +21,6 @@ createRoot(root).render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ToastProvider>
-          {PREVIEW_SITE ? <SiteNotice /> : null}
           <OfflineNotice />
           <RouterProvider router={router} />
         </ToastProvider>

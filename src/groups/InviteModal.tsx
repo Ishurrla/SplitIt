@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useId, useState, type SyntheticEvent } from 'react'
-import { email as emailSchema } from '../../functions/src/shared/schemas'
+import { email as emailSchema } from '../../server/shared/schemas'
 import { callableErrorMessage, createInvite } from '../lib/callables'
 import { Button } from '../ui/Button'
 import { inputClass, labelClass } from '../ui/Field'

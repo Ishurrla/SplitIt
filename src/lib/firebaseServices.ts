@@ -1,17 +1,11 @@
-import { connectFunctionsEmulator, getFunctions } from 'firebase/functions'
 import { connectStorageEmulator, getStorage } from 'firebase/storage'
-import { EMULATOR_HOST, app, usingEmulators } from './firebase'
+import { EMULATOR_HOST, app } from './firebase'
+import { STORAGE_UPLOADS } from './uploads'
 
-// Storage and Functions, kept apart from firebase.ts so only the signed-in screens that upload
-// photos or call functions load them.
-
-/** Same region as the functions (functions/src/lib/options.ts). */
-export const FUNCTIONS_REGION = 'europe-west1'
+// Storage. Only loaded by src/lib/uploads.ts, and only when STORAGE_UPLOADS is true (emulators).
 
 export const storage = getStorage(app)
-export const functions = getFunctions(app, FUNCTIONS_REGION)
 
-if (usingEmulators) {
+if (STORAGE_UPLOADS) {
   connectStorageEmulator(storage, EMULATOR_HOST, 9199)
-  connectFunctionsEmulator(functions, EMULATOR_HOST, 5001)
 }

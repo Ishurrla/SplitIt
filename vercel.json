@@ -2,7 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
   "installCommand": "npx --yes pnpm@11.1.3 install --frozen-lockfile",
-  "buildCommand": "npx --yes pnpm@11.1.3 run build:site",
+  "buildCommand": "npx --yes pnpm@11.1.3 run build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "regions": ["fra1"],
+  "functions": {
+    "api/[name].ts": { "maxDuration": 30 }
+  },
+  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
 }

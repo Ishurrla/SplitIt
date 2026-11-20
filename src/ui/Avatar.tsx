@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { publicStorageUrl } from '../lib/storageUrl'
+import { STORAGE_UPLOADS } from '../lib/uploads'
 import { avatarArtFor } from './avatarArt'
 import { avatarSources } from './avatarSources'
 
@@ -31,7 +32,11 @@ export function Avatar({
   decorative = false,
 }: AvatarProps) {
   const [failed, setFailed] = useState<ReadonlySet<string>>(new Set())
-  const src = avatarSources({ photoPath, photoURL }, publicStorageUrl).find((s) => !failed.has(s))
+  // Uploaded photos live in Storage, which only the emulator version has (src/lib/uploads.ts).
+  const uploaded = STORAGE_UPLOADS ? photoPath : null
+  const src = avatarSources({ photoPath: uploaded, photoURL }, publicStorageUrl).find(
+    (s) => !failed.has(s),
+  )
   return (
     <span
       title={decorative ? undefined : name}

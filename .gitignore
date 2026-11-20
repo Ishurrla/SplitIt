@@ -24,7 +24,6 @@ dist-ssr
 *.sw?
 
 # Firebase
-functions/lib
 .firebase
 firebase-debug*.log
 firestore-debug.log
@@ -44,3 +43,6 @@ pubsub-debug.log
 
 # Ids written by pnpm seed for the demo walkthrough
 .demo-ids.json
+
+# Vercel CLI (vercel link / vercel build)
+.vercel

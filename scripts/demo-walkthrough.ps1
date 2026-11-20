@@ -73,8 +73,9 @@ function Wait-Next {
 # ---------- 1. Emulators and seed ----------
 
 Show-Step 'Start from fresh demo data'
-Wait-ForPorts @(9099, 8080, 5001) 'the Firebase emulators' 'pnpm emulators'
-Say 'Seeding: 3 people and 2 groups, created through the real Cloud Functions.'
+Wait-ForPorts @(9099, 8080, 9199) 'the Firebase emulators' 'pnpm emulators'
+Wait-ForPorts @(5173) 'the app (it also serves the API)' 'pnpm dev'
+Say 'Seeding: 3 people and 2 groups, created through the real API (/api on pnpm dev).'
 Push-Location $Root
 try {
   & pnpm seed
@@ -136,7 +137,7 @@ if (-not $NoBrowser) {
 Write-Host ''
 Write-Host $snippet -ForegroundColor Gray
 Say 'Expect: everything about Tokyo refused (permission-denied), reading Lekki allowed,'
-Say 'and every write refused: money only moves through Cloud Functions.'
+Say 'and every write refused: money only moves through the API.'
 Say '(If Chrome asks, type "allow pasting" first.)'
 Wait-Next
 

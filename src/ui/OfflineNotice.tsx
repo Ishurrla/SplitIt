@@ -13,7 +13,7 @@ const isOnline = () => navigator.onLine
 
 /**
  * A bar across the top while the browser is offline. Firestore keeps showing what it already
- * loaded, but every change goes through a Cloud Function, so nothing can be saved until the
+ * loaded, but every change goes through the API, so nothing can be saved until the
  * connection is back. The live listeners pick up anything missed when it returns.
  */
 export function OfflineNotice() {

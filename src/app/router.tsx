@@ -1,9 +1,7 @@
 import { Outlet, createBrowserRouter, type RouteObject } from 'react-router'
-import { PREVIEW_SITE } from '../lib/site'
 import { AuthPage } from '../pages/AuthPage'
 import { LandingPage } from '../pages/LandingPage'
 import { NotFoundPage, RouteLoading } from '../pages/NotFoundPage'
-import { PreviewOnlyPage } from '../pages/PreviewSite'
 import { RequireAuth } from './RequireAuth'
 
 // The landing and sign-in pages ship in the first download. Every signed-in screen is loaded the
@@ -73,14 +71,8 @@ const appRoutes: RouteObject[] = [
   },
 ]
 
-// The public preview site (src/lib/site.ts) explains instead of offering a sign-in that can't work.
-const previewRoutes: RouteObject[] = ['/auth', '/join/*', '/app/*'].map((path) => ({
-  path,
-  element: <PreviewOnlyPage />,
-}))
-
 export const router = createBrowserRouter([
   { path: '/', element: <LandingPage /> },
-  ...(PREVIEW_SITE ? previewRoutes : appRoutes),
+  ...appRoutes,
   { path: '*', element: <NotFoundPage /> },
 ])

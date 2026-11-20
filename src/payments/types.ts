@@ -1,5 +1,5 @@
 import type { Timestamp } from 'firebase/firestore'
-import type { Transfer } from '../../functions/src/shared/schemas'
+import type { Transfer } from '../../server/shared/schemas'
 
 export type { Transfer }
 

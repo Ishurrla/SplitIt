@@ -7,6 +7,8 @@ import { buttonClass } from '../ui/buttonStyles'
 import { Icon } from '../ui/Icon'
 import { ThemeButton } from '../ui/ThemeButton'
 
+const README_URL = 'https://github.com/Ishurrla/SplitIt#readme'
+
 // Copy from the prototype's landing page. The ledger "sheet" is a static illustration.
 const SAMPLE = [
   ['Airbnb, 2 nights', 'Ada', '₦180,000'],
@@ -191,6 +193,13 @@ export function LandingPage() {
         <Link to={signedIn ? '/app' : '/auth?mode=signup'} className={buttonClass('link')}>
           {signedIn ? 'Open SplitIt' : 'Get started free'}
         </Link>
+        <p className="basis-full">
+          Receipt and photo uploads only run in the local emulator version, and the weekly reminder
+          email isn&apos;t built yet.{' '}
+          <a href={README_URL} className="underline underline-offset-4 hover:text-ink">
+            How SplitIt is built
+          </a>
+        </p>
       </footer>
     </div>
   )

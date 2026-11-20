@@ -1,6 +1,6 @@
 import type { UseQueryResult } from '@tanstack/react-query'
 import { Link } from 'react-router'
-import type { SettleUpResult } from '../../functions/src/shared/schemas'
+import type { SettleUpResult } from '../../server/shared/schemas'
 import { personName, type People } from '../groups/people'
 import { SignedAmount } from '../groups/SignedAmount'
 import type { Group } from '../groups/types'

@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState, type SyntheticEvent } from 'react'
 import { useNavigate } from 'react-router'
-import { COVERS, createGroupInput, type CoverName } from '../../functions/src/shared/schemas'
+import { COVERS, createGroupInput, type CoverName } from '../../server/shared/schemas'
 import { useSignedIn } from '../auth/context'
 import { callableErrorMessage, createGroup } from '../lib/callables'
 import { ACCEPT_ATTR, imageProblem } from '../lib/images'
@@ -12,6 +12,7 @@ import { Modal } from '../ui/Modal'
 import { useToast } from '../ui/toastContext'
 import { CoverArt } from './Cover'
 import { refreshGroup } from './queries'
+import { STORAGE_UPLOADS, UPLOADS_NOTE } from '../lib/uploads'
 import { uploadCover } from './uploadCover'
 
 /** "Start a new group": name, currency, and an illustrated cover or your own photo. */
@@ -156,25 +157,30 @@ export function NewGroupModal({ onClose }: { onClose: () => void }) {
               <img src={photo.url} alt="Your photo" className="block size-full object-cover" />
             </span>
           ) : null}
-          <Button
-            variant="link"
-            onClick={() => {
-              fileInput.current?.click()
-            }}
-          >
-            {photo ? 'Choose another photo' : 'Upload a photo'}
-          </Button>
-          <input
-            ref={fileInput}
-            type="file"
-            accept={ACCEPT_ATTR}
-            hidden
-            onChange={(e) => {
-              onPickFile(e.target.files?.[0])
-              e.target.value = ''
-            }}
-          />
+          {STORAGE_UPLOADS ? (
+            <>
+              <Button
+                variant="link"
+                onClick={() => {
+                  fileInput.current?.click()
+                }}
+              >
+                {photo ? 'Choose another photo' : 'Upload a photo'}
+              </Button>
+              <input
+                ref={fileInput}
+                type="file"
+                accept={ACCEPT_ATTR}
+                hidden
+                onChange={(e) => {
+                  onPickFile(e.target.files?.[0])
+                  e.target.value = ''
+                }}
+              />
+            </>
+          ) : null}
         </div>
+        {STORAGE_UPLOADS ? null : <p className="mt-2 text-[.88rem] text-muted">{UPLOADS_NOTE}</p>}
 
         <p role="alert" className="mt-2.5 min-h-[1.4em] text-[.9rem] text-red">
           {error}

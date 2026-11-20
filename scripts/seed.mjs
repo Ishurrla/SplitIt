@@ -1,9 +1,9 @@
 // Fills the local emulators with demo data: 3 people and 2 groups in different currencies.
-// Run with the emulators already started (pnpm emulators), then: pnpm seed
+// Run with the emulators (pnpm emulators) and the app (pnpm dev) already started, then: pnpm seed
 //
-// Everything is created through the real Cloud Functions, signed in as each person, exactly as
-// the app would do it. So balances, activity and members come out the way the app writes them,
-// and the seed doubles as a check that the functions work end to end.
+// Everything is created through the real API (/api/<name>, served by pnpm dev from server/),
+// signed in as each person, exactly as the app does it. So balances, activity and members come
+// out the way the app writes them, and the seed doubles as an end-to-end check of the API.
 //
 // It only ever talks to emulators on this machine under a demo-* project id, and it wipes their
 // Auth and Firestore data first, so it can be run again at any time.
@@ -23,13 +23,13 @@ import {
   setDoc,
   terminate,
 } from 'firebase/firestore'
-import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/functions'
 import { writeFileSync } from 'node:fs'
 
 const PROJECT = 'demo-splitit'
 const HOST = '127.0.0.1'
-const PORTS = { auth: 9099, firestore: 8080, functions: 5001 }
-const REGION = 'europe-west1'
+const PORTS = { auth: 9099, firestore: 8080 }
+/** The app's dev server, which also serves the API. */
+const API = 'http://localhost:5173/api'
 const PASSWORD = 'splitit-demo'
 
 // ---------- safety ----------
@@ -50,25 +50,23 @@ async function reachable(name, url) {
 }
 
 /**
- * The functions emulator opens its port before it has loaded the functions; until then every
- * call is a 404. Wait (up to 2 minutes) until createGroup exists. A plain GET to a callable that
- * is loaded answers 400, because a callable only accepts POST.
+ * Waits (up to 2 minutes) for pnpm dev to answer /api. A GET to an API call answers 405, because
+ * the API only accepts POST; anything else means the dev server isn't up yet.
  */
-async function functionsLoaded() {
-  const url = `http://${HOST}:${PORTS.functions}/${PROJECT}/${REGION}/createGroup`
+async function apiReady() {
   const deadline = Date.now() + 120_000
   let said = false
   for (;;) {
-    const status = await fetch(url).then(
+    const status = await fetch(`${API}/createGroup`).then(
       (r) => r.status,
       () => 0,
     )
-    if (status !== 404 && status !== 0) return
+    if (status === 405) return
     if (Date.now() > deadline) {
-      console.error('The functions never loaded. Check the pnpm emulators terminal for errors.')
+      console.error(`The API isn't answering at ${API}. Start the app first with: pnpm dev`)
       process.exit(1)
     }
-    if (!said) console.log('Waiting for the functions emulator to load the functions…')
+    if (!said) console.log('Waiting for pnpm dev to answer /api…')
     said = true
     await new Promise((r) => setTimeout(r, 1000))
   }
@@ -104,8 +102,6 @@ async function person(displayName, email, defaultCurrency) {
   connectAuthEmulator(auth, `http://${HOST}:${PORTS.auth}`, { disableWarnings: true })
   const db = getFirestore(app)
   connectFirestoreEmulator(db, HOST, PORTS.firestore)
-  const functions = getFunctions(app, REGION)
-  connectFunctionsEmulator(functions, HOST, PORTS.functions)
 
   const { user } = await createUserWithEmailAndPassword(auth, email, PASSWORD)
   await updateProfile(user, { displayName })
@@ -118,7 +114,20 @@ async function person(displayName, email, defaultCurrency) {
     weeklyReminders: true,
     createdAt: serverTimestamp(),
   })
-  const call = async (name, data) => (await httpsCallable(functions, name)(data)).data
+  /** POST /api/<name> as this person, the way src/lib/apiClient.ts does it. */
+  const call = async (name, data) => {
+    const res = await fetch(`${API}/${name}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${await user.getIdToken()}`,
+      },
+      body: JSON.stringify({ data }),
+    })
+    const body = await res.json()
+    if (!res.ok) throw new Error(`${name}: ${body.error?.code} ${body.error?.message}`)
+    return body.result
+  }
   return { uid: user.uid, name: displayName, email, db, call }
 }
 
@@ -153,8 +162,7 @@ async function expense(groupId, by, title, amountMinor, splits) {
 
 await reachable('Auth', `http://${HOST}:${PORTS.auth}/`)
 await reachable('Firestore', `http://${HOST}:${PORTS.firestore}/`)
-await reachable('Functions', `http://${HOST}:${PORTS.functions}/`)
-await functionsLoaded()
+await apiReady()
 await wipe()
 
 const ada = await person('Ada Okafor', 'ada@example.com', 'NGN')

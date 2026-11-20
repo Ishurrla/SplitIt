@@ -39,6 +39,7 @@ import {
 } from './queries'
 import type { Group, Member } from './types'
 import { uploadCover } from './uploadCover'
+import { STORAGE_UPLOADS } from '../lib/uploads'
 
 type Dialog =
   | { kind: 'invite' }
@@ -165,7 +166,7 @@ export function GroupView({ group }: { group: Group }) {
 
       <div className="relative mb-5 h-[150px] overflow-hidden border-[1.5px] border-solid border-ink bg-wash @max-[860px]/shell:h-[110px]">
         <GroupCover cover={group.cover} coverPath={group.coverPath} />
-        {isOwner ? (
+        {isOwner && STORAGE_UPLOADS ? (
           <>
             <Button
               className="absolute right-2.5 bottom-2.5 bg-sheet! px-[11px]! py-1.5! text-[.85rem]"

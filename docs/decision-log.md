@@ -225,6 +225,43 @@ Short entries: what happened, what was tried, what was chosen and why. Newest at
   - After a previous seed, the Firestore emulator answers its first reset with 499 "call already cancelled". The seed retries quietly; four runs in a row and two full walkthroughs then passed.
   - Vite's `localhost` listens on IPv6 (`::1`) only on this machine, so the walkthrough's "is the app up" check tries both 127.0.0.1 and ::1.
 
+## Phase 9
+
+### 34. No Blaze: the callables move to one Vercel function, and the full app goes live on Spark
+
+- **Why.** Blaze isn't available, so Cloud Functions and Storage can't be deployed. Auth and Firestore (rules and indexes) work on Spark, so only the server logic needed a new home. Plan approved first: [vercel-migration-plan.md](vercel-migration-plan.md).
+- **Shape.**
+  - `functions/src` moved to `server/` with `git mv`, keeping history.
+  - Handler bodies are unchanged apart from `onCall` → `defineHandler`, `HttpsError` → `ApiError` and the Storage switch. The request keeps the callable's shape (`{ auth: { uid, token }, data }`), so every membership, owner and amount check is the same line of code as before.
+  - `firebase-functions` is gone, and `firebase-admin` and `zod` moved to the root package.
+- **One function, not 14.** Vercel Hobby refuses more than 12 functions per deployment when no framework bundles them, so `api/[name].ts` serves every `/api/<name>`. Only that 10-line file is Vercel-specific: it and the local Node adapter both call `handleApi(name, Request)`.
+- **Same protocol as callables.**
+  - Requests are `POST { data }` with `Authorization: Bearer <ID token>`.
+  - Answers are `{ result }` or `{ error: { code, message } }`, with the callables' HTTP statuses.
+  - The client wrapper rethrows `functions/<code>`, so `callableErrorMessage`, `isConnectionError` and every screen were left alone. A network failure becomes `unavailable`, and a non-JSON answer (a platform error page) becomes `internal`.
+- **Locally, no `vercel dev`.** A dev-only Vite plugin serves `/api` from `server/` on the same origin, configured from `VITE_USE_EMULATORS`. So `pnpm dev`, the seed and the tests need no Vercel login. The seed now calls `/api` on `pnpm dev`, so DEMO.md's order became emulators → dev → seed.
+- **Security.**
+  - `firestore.rules` didn't change; the 126 rules tests are untouched.
+  - The token is verified with `verifyIdToken`, which also checks it was issued for this project.
+  - Bodies are limited to 32 KB, POST and JSON only, with no CORS headers (same origin; a bearer token rather than a cookie means no CSRF).
+  - A best-effort per-person rate limit runs in each instance's memory.
+  - The service account is one base64 Vercel variable. `server/admin.ts` refuses emulator settings on Vercel, refuses both modes at once, and refuses a non-`demo-` emulator project.
+- **Storage.** Stays emulator-only, behind two switches:
+  - **Client:** `VITE_STORAGE_UPLOADS`, which only counts with the emulators. When it's off, the receipt, cover and avatar uploads are hidden, each with a one-line note.
+  - **Server:** on only when `FIREBASE_STORAGE_EMULATOR_HOST` is set. Off, photo paths get `failed-precondition` and clean-up is skipped.
+  - **Bundle:** the Storage SDK is now loaded on demand. Its first vendor group took `@firebase/util` with it (a group pulls in what it matches and that code's dependencies), which made the Storage file load on every page. Storage is now the lowest-priority group, so the live site's `index.html` no longer preloads it.
+- **Tests.**
+  - The 102 function tests moved to `tests/api/` with their bodies unchanged. Only the harness changed: each file starts its own server on a free port, and calls go through the app's own API client with Auth-emulator ID tokens.
+  - 12 new tests cover the HTTP layer, tokens, the rate limit, and Storage off (in its own process, so the environment can differ).
+  - The token tests start from a real emulator token and change one claim. A hand-made token failed for the wrong reason: in emulator mode, `verifyIdToken` also checks the account exists and the token isn't older than the account.
+- **Mutation check, repeated.** The race tests passed three runs in a row. With recordPayment's transaction replaced by plain reads and writes, exactly the three race tests failed and the other 17 passed; with the transaction restored, the full suite passes again.
+- **The production path.**
+  - `vercel build` couldn't run on this machine: the CLI installs its builders with symlinks, which Windows refuses (EPERM) without Developer Mode, and there is no WSL or Docker.
+  - Instead, `api/[name].ts` was bundled on its own with Vite's SSR build (TypeScript compiled, our code bundled, `node_modules` external, as Vercel packages it). The bundled file's exported `POST`/`GET` were then called with Web `Request`s against the emulators: 16 checks across groups, invites, expenses, payments, settle-up, spending, refusals and tokens all passed.
+  - What that doesn't cover is Vercel's own builder and runtime.
+- **Region.** Firestore `europe-west3` and Vercel `fra1`, both in Frankfurt, because each call makes several Firestore round trips. The old `REGION` constant only applied to Cloud Functions and is gone.
+- **Removed:** the preview-site mode (`build:site`, the notice, `VITE_README_URL`). The landing footer and Settings now say plainly what is emulator-only.
+
 ## The three entries worth reading first
 
 1. **24, proving the transaction is what stops overpayment.** A test that passed with the safeguard removed proved nothing. Taking the transaction out and watching the race tests fail, after making the race real, is what proved it.

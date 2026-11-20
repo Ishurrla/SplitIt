@@ -1,10 +1,9 @@
 import { doc, updateDoc } from 'firebase/firestore'
-import { ref, uploadBytes } from 'firebase/storage'
 import { useId, useRef, useState, type ReactNode, type SyntheticEvent } from 'react'
 import { useSignedIn } from '../auth/context'
 import { callableErrorMessage, updateProfile } from '../lib/callables'
 import { db } from '../lib/firebase'
-import { storage } from '../lib/firebaseServices'
+import { STORAGE_UPLOADS, UPLOADS_NOTE, uploadJpeg } from '../lib/uploads'
 import { ACCEPT_ATTR, imageProblem, newPhotoName, resizeToJpeg } from '../lib/images'
 import { CURRENCIES, CURRENCY_CODES, type CurrencyCode } from '../lib/money'
 import { LogOutButton } from '../shell/LogOutButton'
@@ -44,9 +43,7 @@ export function SettingsPage() {
     setBusy('photo')
     try {
       const path = `avatars/${user.uid}/${newPhotoName()}`
-      await uploadBytes(ref(storage, path), await resizeToJpeg(file, AVATAR_PX), {
-        contentType: 'image/jpeg',
-      })
+      await uploadJpeg(path, await resizeToJpeg(file, AVATAR_PX))
       await updateProfile({ photoPath: path })
       toast('Profile photo updated.')
     } catch (e) {
@@ -128,7 +125,7 @@ export function SettingsPage() {
           <p className="mt-0.5 text-[.88rem] text-muted">
             Your photo shows next to your name for everyone in your groups.
           </p>
-          <div className="mt-2.5 flex flex-wrap gap-2.5">
+          <div hidden={!STORAGE_UPLOADS} className="mt-2.5 flex flex-wrap gap-2.5">
             <Button
               disabled={busy === 'photo'}
               onClick={() => {
@@ -153,7 +150,10 @@ export function SettingsPage() {
               }}
             />
           </div>
-          {profile.photoPath === null && profile.photoURL ? (
+          {STORAGE_UPLOADS ? null : (
+            <p className="mt-2 max-w-[46ch] text-[.85rem] text-muted">{UPLOADS_NOTE}</p>
+          )}
+          {STORAGE_UPLOADS && profile.photoPath === null && profile.photoURL ? (
             <p className="mt-2 text-[.85rem] text-muted">
               Showing your Google photo until you upload one.
             </p>
@@ -179,7 +179,10 @@ export function SettingsPage() {
         </form>
       </Row>
 
-      <Row title="Weekly reminder email" text="Every Monday, only if you owe someone money.">
+      <Row
+        title="Weekly reminder email"
+        text="Every Monday, only if you owe someone money. Not sent yet: the email isn't built."
+      >
         <input
           type="checkbox"
           role="switch"

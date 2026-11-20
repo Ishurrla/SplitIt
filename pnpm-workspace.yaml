@@ -1,5 +1,3 @@
-packages:
-  - functions
 # pnpm 11 blocks install scripts unless allowed here.
 allowBuilds:
   # Only reads Firebase Hosting auto-config; we configure Firebase explicitly.

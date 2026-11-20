@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { personName, type People } from '../groups/people'
 import { SignedAmount } from '../groups/SignedAmount'
 import { useStorageUrl } from '../groups/queries'
+import { STORAGE_UPLOADS } from '../lib/uploads'
 import type { Group } from '../groups/types'
 import { formatMinor, type CurrencyCode } from '../lib/money'
 import { Avatar } from '../ui/Avatar'
@@ -129,7 +130,7 @@ export function Ledger({
                     >
                       {e.title}
                     </button>
-                    {e.receiptPath ? (
+                    {e.receiptPath && STORAGE_UPLOADS ? (
                       <button
                         type="button"
                         aria-label={`View receipt for ${e.title}`}

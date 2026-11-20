@@ -1,6 +1,6 @@
 # Try SplitIt locally, and try to break in
 
-About 10 minutes. Everything runs on your machine against the Firebase emulators; nothing touches a real Firebase project.
+About 10 minutes. Everything runs on your machine against the Firebase emulators; nothing touches a real Firebase project. (The live site runs the same app on real Firebase, without photo uploads; see the README.)
 
 > **Recording it?** With the emulators and `pnpm dev` running, `pnpm demo` goes through these steps one at a time. It seeds fresh data, opens each page in your browser, tells you what to show, and copies the DevTools snippet with this run's group ids filled in. Press Enter to move on.
 
@@ -14,17 +14,21 @@ Copy-Item .env.example .env.local
 pnpm emulators
 ```
 
-Wait for "All emulators ready". In a second terminal:
-
-```powershell
-pnpm seed
-```
+Wait for "All emulators ready". In a second terminal, start the app. It also serves the API (`/api/<name>`, the server code in `server/`):
 
 ```powershell
 pnpm dev
 ```
 
-`pnpm seed` wipes the emulators' accounts and data, then creates the demo through the real Cloud Functions. It prints the group ids and links; they change on every run.
+In a third terminal:
+
+```powershell
+pnpm seed
+```
+
+`pnpm seed` wipes the emulators' accounts and data, then creates the demo through the real API, signed in as each person. It prints the group ids and links; they change on every run.
+
+If your `.env.local` is older than the move to Vercel, add `VITE_STORAGE_UPLOADS=true` to it so receipt and photo uploads show up locally.
 
 | Person     | Email              | Password       | Groups                        |
 | ---------- | ------------------ | -------------- | ----------------------------- |
@@ -61,13 +65,13 @@ await __splitit.create('groups/TOKYO/members/' + __splitit.whoAmI(), { role: 'ow
 
 await __splitit.read('groups/LEKKI') // allowed: Chi is a member
 await __splitit.write('groups/LEKKI', { ['balances.' + __splitit.whoAmI()]: 0 }) // refused: no wiping your own debt
-await __splitit.create('groups/LEKKI/expenses/fake', { title: 'x', amountMinor: 1 }) // refused: money only moves through functions
+await __splitit.create('groups/LEKKI/expenses/fake', { title: 'x', amountMinor: 1 }) // refused: money only moves through the API
 await __splitit.remove('groups/LEKKI') // refused
 ```
 
 `read` also logs the data when it is allowed. Paths with an even number of parts are documents; odd ones are collections.
 
-The rules allow reads only. Every write goes through a Cloud Function that re-checks membership, amounts and splits. The function tests (`pnpm test:functions`) cover attempts such as paying more than is owed, or editing someone else's expense.
+The rules allow reads only. Every write goes through the API, which verifies the caller's ID token and re-checks membership, amounts and splits. The API tests (`pnpm test:api`) cover attempts such as paying more than is owed, editing someone else's expense, or calling with a forged, expired or missing token.
 
 ## 4. One thing that will look like a hole but isn't
 

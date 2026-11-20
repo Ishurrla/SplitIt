@@ -1,10 +1,10 @@
 import type { Timestamp } from 'firebase/firestore'
-import type { CoverName } from '../../functions/src/shared/schemas'
+import type { CoverName } from '../../server/shared/schemas'
 import type { CurrencyCode } from '../lib/money'
 
 export type { CoverName }
 
-/** groups/{gid}. Written only by Cloud Functions; members read it. */
+/** groups/{gid}. Written only by the API (server/); members read it. */
 export interface Group {
   id: string
   name: string

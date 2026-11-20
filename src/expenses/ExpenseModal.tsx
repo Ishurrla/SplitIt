@@ -1,14 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { collection, doc } from 'firebase/firestore'
-import { ref, uploadBytes } from 'firebase/storage'
 import { useState } from 'react'
 import { refreshGroup, useStorageUrl } from '../groups/queries'
 import type { Group, Member } from '../groups/types'
 import { callableErrorMessage, saveExpense } from '../lib/callables'
 import { db } from '../lib/firebase'
-import { storage } from '../lib/firebaseServices'
 import { newPhotoName, resizeToJpeg } from '../lib/images'
 import { formatMinor } from '../lib/money'
+import { STORAGE_UPLOADS, uploadJpeg } from '../lib/uploads'
 import { Button } from '../ui/Button'
 import { Modal } from '../ui/Modal'
 import { useToast } from '../ui/toastContext'
@@ -43,9 +42,7 @@ export function ExpenseModal({ group, members, me, expense, onClose }: ExpenseMo
     try {
       if (values.receipt.kind === 'new') {
         const path = `receipts/${group.id}/${expenseId}/${newPhotoName()}`
-        await uploadBytes(ref(storage, path), await resizeToJpeg(values.receipt.file), {
-          contentType: 'image/jpeg',
-        })
+        await uploadJpeg(path, await resizeToJpeg(values.receipt.file))
         receiptPath = path
       } else {
         receiptPath = values.receipt.kind === 'keep' ? (expense?.receiptPath ?? null) : null
@@ -98,10 +95,10 @@ export function ExpenseModal({ group, members, me, expense, onClose }: ExpenseMo
       }
       onClose={onClose}
     >
-      {expense?.receiptPath && receipt.isPending ? (
+      {STORAGE_UPLOADS && expense?.receiptPath && receipt.isPending ? (
         // Wait for the photo, or the form would open without it and saving would remove it.
         <p className="mt-6 text-muted">Loading the expense…</p>
-      ) : expense?.receiptPath && receipt.isError ? (
+      ) : STORAGE_UPLOADS && expense?.receiptPath && receipt.isError ? (
         <div className="mt-6">
           <p className="text-red">
             Couldn&apos;t load the receipt photo, so editing is paused to keep it safe.
@@ -115,6 +112,7 @@ export function ExpenseModal({ group, members, me, expense, onClose }: ExpenseMo
           currency={group.currency}
           members={formMembers}
           me={me}
+          receipts={STORAGE_UPLOADS}
           initial={
             expense
               ? {
