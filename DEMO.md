@@ -2,6 +2,8 @@
 
 About 10 minutes. Everything runs on your machine against the Firebase emulators; nothing touches a real Firebase project.
 
+> **Recording it?** With the emulators and `pnpm dev` running, `pnpm demo` goes through these steps one at a time. It seeds fresh data, opens each page in your browser, tells you what to show, and copies the DevTools snippet with this run's group ids filled in. Press Enter to move on.
+
 ## 1. Start it
 
 You need Node 22+, pnpm, Java 21 and the Firebase CLI (`npm install -g firebase-tools`). In the project folder:

@@ -32,6 +32,7 @@ const as = (uid: keyof typeof EMAIL) =>
 const signedOut = () => env.unauthenticatedContext().storage(BUCKET)
 
 const FIVE_MB = 5 * 1024 * 1024
+const BIG_UPLOAD_TIMEOUT = 60_000
 const upload = (
   storage: ReturnType<typeof as>,
   path: string,
@@ -55,10 +56,18 @@ describe('receipts/{gid}/{eid}/{file}', () => {
     assertFails(upload(as(A), `receipts/${G1}/e2/r.svg`, 'image/svg+xml')))
   it('rejects a PDF', () =>
     assertFails(upload(as(A), `receipts/${G1}/e2/r.pdf`, 'application/pdf')))
-  it('rejects a file of exactly 5 MB', () =>
-    assertFails(upload(as(A), `receipts/${G1}/e2/big.jpg`, 'image/jpeg', FIVE_MB)))
-  it('accepts a file just under 5 MB', () =>
-    assertSucceeds(upload(as(A), `receipts/${G1}/e2/ok.jpg`, 'image/jpeg', FIVE_MB - 1)))
+  // The 5 MB uploads (here and for avatars) get a minute each, not the 20 s default: on a busy machine the emulator
+  // can take longer than that to receive 5 MB before it even checks the rule (decision log 33).
+  it(
+    'rejects a file of exactly 5 MB',
+    () => assertFails(upload(as(A), `receipts/${G1}/e2/big.jpg`, 'image/jpeg', FIVE_MB)),
+    BIG_UPLOAD_TIMEOUT,
+  )
+  it(
+    'accepts a file just under 5 MB',
+    () => assertSucceeds(upload(as(A), `receipts/${G1}/e2/ok.jpg`, 'image/jpeg', FIVE_MB - 1)),
+    BIG_UPLOAD_TIMEOUT,
+  )
   it('B (outsider) cannot upload a receipt', () =>
     assertFails(upload(as(B), `receipts/${G1}/e2/b.jpg`, 'image/jpeg')))
   it('signed-out visitor cannot upload a receipt', () =>
@@ -77,8 +86,11 @@ describe('avatars/{uid}/{file}', () => {
   it("B cannot delete A's avatar", () => assertFails(as(B).ref(AVATAR_A).delete()))
   it('rejects a non-image avatar', () =>
     assertFails(upload(as(A), `avatars/${A}/x.html`, 'text/html')))
-  it('rejects an avatar of 5 MB or more', () =>
-    assertFails(upload(as(A), `avatars/${A}/big.jpg`, 'image/jpeg', FIVE_MB)))
+  it(
+    'rejects an avatar of 5 MB or more',
+    () => assertFails(upload(as(A), `avatars/${A}/big.jpg`, 'image/jpeg', FIVE_MB)),
+    BIG_UPLOAD_TIMEOUT,
+  )
   it('signed-out visitor cannot upload an avatar', () =>
     assertFails(upload(signedOut(), `avatars/${A}/anon.jpg`, 'image/jpeg')))
 })

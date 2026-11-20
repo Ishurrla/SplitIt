@@ -2,8 +2,16 @@
 
 A shared expense splitter: groups, expenses, balances and settle-up, built on Firebase. Money is always kept as whole numbers in each currency's smallest unit (kobo, cents, yen) and is never converted between currencies.
 
-**Live site:** _not deployed yet (see [What runs where](#what-runs-where))_  
-**Try it locally in 10 minutes, including trying to read someone else's group:** [DEMO.md](DEMO.md)
+## Live site, and what it is
+
+**Live site: https://YOUR-PROJECT.vercel.app** <!-- replace with the URL `vercel --prod` prints -->
+
+**The live site is a preview of the interface only.** You can browse the landing page and see the design. Signing in, groups, expenses and payments do not work there, and the site says so on every page.
+
+That is because every change in SplitIt goes through Cloud Functions, which check the amounts and keep the balances, and running Cloud Functions and Storage needs Firebase's paid Blaze plan. This project stays on the free Spark plan. So **the full app runs on the Firebase emulators on your own machine**, which takes about 10 minutes:
+
+- [DEMO.md](DEMO.md) walks through it, including trying to read a group you're not in;
+- `pnpm demo` runs the same steps one at a time, for a screen recording.
 
 ## Contents
 
@@ -18,23 +26,32 @@ A shared expense splitter: groups, expenses, balances and settle-up, built on Fi
 - [The app, screen by screen](#the-app-screen-by-screen)
 - [Tests](#tests)
 - [Scripts](#scripts)
+- [Deploying the preview site](#deploying-the-preview-site)
 - [Known limitations](#known-limitations)
 - [Docs](#docs)
 
 ## What runs where
 
-The project is on the free Spark plan. Cloud Functions and Storage need the Blaze (billing) plan, so the full app currently runs on the Firebase emulators.
+**Deployed (Vercel):**
 
-| Part                                  | Deployed                                    | Emulator                    |
-| ------------------------------------- | ------------------------------------------- | --------------------------- |
-| Frontend (React, Vite)                | Vercel (`vercel.json` is ready); link above | `pnpm dev`                  |
-| Authentication                        | Not yet; free on Spark                      | ✓                           |
-| Firestore and `firestore.rules`       | Not yet; free on Spark                      | ✓ (rules tested)            |
-| Cloud Storage and `storage.rules`     | Not yet; needs Blaze                        | ✓ (rules tested)            |
-| Cloud Functions (all money logic)     | Not yet; needs Blaze                        | ✓ (every callable tested)   |
-| Composite index for `spendingByMonth` | Not yet                                     | ✗ (the emulator ignores it) |
+- **The frontend only**, built with `pnpm build:site`. This build:
+  - shows the "preview" notice on every page;
+  - replaces `/auth`, `/app/*` and `/join/*` with a page explaining why sign-in isn't available;
+  - never contacts Firebase. It uses the `demo-splitit` project id, which can't reach real Firebase services.
+- `vercel.json` sends every path to `index.html`, so links such as `/app/groups/…` open the app instead of a 404.
 
-The Firebase project id is `demo-splitit`. Ids that start with `demo-` only work with the emulators and can never reach real cloud services. Region for a deploy: `europe-west1` (Firestore, Functions and Storage).
+**Emulator only (your machine):**
+
+| Part                                  | Why it isn't deployed                                                            | How it's checked                              |
+| ------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------- |
+| Cloud Functions (all 14 callables)    | Needs Blaze                                                                      | `pnpm test:functions` (102 tests)             |
+| Cloud Storage and `storage.rules`     | Needs Blaze                                                                      | `pnpm test:rules`                             |
+| Firestore and `firestore.rules`       | Free on Spark, but useless without the functions: clients can't write money data | `pnpm test:rules` (126 tests with Storage)    |
+| Authentication                        | Free on Spark, but signing in would lead to an app that can't save anything      | Used by every emulator test                   |
+| Composite index for `spendingByMonth` | Deployed with Firestore                                                          | **Not checked**: the emulator ignores indexes |
+| Scheduled weekly reminder email       | Not built (no email service; see limitations)                                    | n/a                                           |
+
+The Firebase project id is `demo-splitit`. Ids that start with `demo-` only work with the emulators and can never reach real cloud services. The region for a future deploy is `europe-west1` (Firestore, Functions and Storage).
 
 > **The `spendingByMonth` composite index is only confirmed on a real deploy.** The dashboard's spending query (`splitUserIds` array-contains, ordered by `createdAt`) needs the index in [firestore.indexes.json](firestore.indexes.json). The emulator runs any query without indexes, so the tests can't prove the index is right. Until it has been deployed and the chart has loaded once against real Firestore, treat it as untested.
 
@@ -104,14 +121,15 @@ PowerShell, one command per line.
 
 Vite reads `.env.local`, which git ignores. [.env.example](.env.example) has every variable, with values that work for the emulators.
 
-| Variable                       | What it is                                                                             |
-| ------------------------------ | -------------------------------------------------------------------------------------- |
-| `VITE_FIREBASE_PROJECT_ID`     | `demo-splitit` for the emulators, the real project id after deploy                     |
-| `VITE_FIREBASE_API_KEY`        | Web API key from the Firebase console (any value works on the emulators)               |
-| `VITE_FIREBASE_AUTH_DOMAIN`    | `<project>.firebaseapp.com`                                                            |
-| `VITE_FIREBASE_STORAGE_BUCKET` | `<project>.appspot.com`                                                                |
-| `VITE_FIREBASE_APP_ID`         | Web app id from the Firebase console                                                   |
-| `VITE_USE_EMULATORS`           | `true` to connect Auth, Firestore, Storage and Functions to the emulators on 127.0.0.1 |
+| Variable                       | What it is                                                                                                                   |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_FIREBASE_PROJECT_ID`     | `demo-splitit` for the emulators, the real project id after deploy                                                           |
+| `VITE_FIREBASE_API_KEY`        | Web API key from the Firebase console (any value works on the emulators)                                                     |
+| `VITE_FIREBASE_AUTH_DOMAIN`    | `<project>.firebaseapp.com`                                                                                                  |
+| `VITE_FIREBASE_STORAGE_BUCKET` | `<project>.appspot.com`                                                                                                      |
+| `VITE_FIREBASE_APP_ID`         | Web app id from the Firebase console                                                                                         |
+| `VITE_USE_EMULATORS`           | `true` to connect Auth, Firestore, Storage and Functions to the emulators on 127.0.0.1                                       |
+| `VITE_README_URL`              | Preview site only (`pnpm build:site`, set on Vercel): the README link in the notice on every page. Not used by the full app. |
 
 These are the Firebase web config, which is public by design: it ships to every browser, and the security rules are what protect the data. **There is no service account key anywhere in this project, and there must never be one.** The functions use the Admin SDK's built-in credentials when deployed, and the emulator otherwise.
 
@@ -271,20 +289,49 @@ The emulator suites start and stop their own emulators and print a pass/fail tab
 
 ## Scripts
 
-| Command          | What it does                                                                                                                                |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`       | Vite dev server                                                                                                                             |
-| `pnpm build`     | Typecheck and build to `dist/`                                                                                                              |
-| `pnpm typecheck` | TypeScript for the app, tests and `functions/`                                                                                              |
-| `pnpm lint`      | ESLint (type-aware)                                                                                                                         |
-| `pnpm format`    | Prettier                                                                                                                                    |
-| `pnpm emulators` | Build the functions and start all emulators                                                                                                 |
-| `pnpm seed`      | Wipe the emulators and create 3 people and 2 groups (NGN and JPY) through the real functions. Refuses anything but local `demo-` emulators. |
-| `pnpm diagram`   | Re-render `docs/data-model.png` from `docs/data-model.mmd` (uses your installed Chrome)                                                     |
+| Command           | What it does                                                                                                                                                                 |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`        | Vite dev server                                                                                                                                                              |
+| `pnpm build`      | Typecheck and build the full app to `dist/` (uses `.env.local`)                                                                                                              |
+| `pnpm build:site` | Typecheck and build the public preview site (Vite mode `site`). Needs `VITE_README_URL`. This is what Vercel runs.                                                           |
+| `pnpm typecheck`  | TypeScript for the app, tests and `functions/`                                                                                                                               |
+| `pnpm lint`       | ESLint (type-aware)                                                                                                                                                          |
+| `pnpm format`     | Prettier                                                                                                                                                                     |
+| `pnpm emulators`  | Build the functions and start all emulators                                                                                                                                  |
+| `pnpm seed`       | Wipe the emulators and create 3 people and 2 groups (NGN and JPY) through the real functions. Waits for the functions to load. Refuses anything but local `demo-` emulators. |
+| `pnpm demo`       | Step-by-step DEMO.md for a screen recording. It seeds, opens each page and copies the DevTools snippet with this run's ids. Needs `pnpm emulators` and `pnpm dev` running.   |
+| `pnpm diagram`    | Re-render `docs/data-model.png` from `docs/data-model.mmd` (uses your installed Chrome)                                                                                      |
 
-### Before deploying: authorised domains
+## Deploying the preview site
 
-Google sign-in only works on domains listed in Firebase. Once the Vercel site exists, add its domain under **Authentication → Settings → Authorized domains** (decision log 11).
+Vercel builds the site with the settings in [vercel.json](vercel.json):
+
+- it installs with pnpm 11, the version this repo uses;
+- it runs `pnpm build:site` and serves `dist/`;
+- it sends every path to `index.html`.
+
+[.vercelignore](.vercelignore) keeps local `.env` files and emulator data out of the upload. The only setting the site needs is `VITE_README_URL`, the https link to this README. A site build without it stops with an error. No Firebase settings are needed.
+
+To check the site build locally first, set the link for this terminal, then build and preview:
+
+```powershell
+$env:VITE_README_URL = 'https://github.com/YOU/SplitIt#readme'
+```
+
+```powershell
+pnpm build:site
+```
+
+```powershell
+pnpm exec vite preview --mode site
+```
+
+### If the full app is deployed later (Blaze)
+
+- Build with `pnpm build` and the real project's settings instead of `build:site`.
+- Deploy the rules, the index, the functions and Storage with the Firebase CLI.
+- Add the Vercel domain under **Authentication → Settings → Authorized domains**. Google sign-in only works on domains listed there (decision log 11).
+- Load the dashboard chart once to confirm the `spendingByMonth` index.
 
 ## Known limitations
 
@@ -293,7 +340,7 @@ Google sign-in only works on domains listed in Firebase. Once the Vercel site ex
 - **A receipt can be left behind in Storage.** The photo is uploaded before the expense is saved, and the save checks that it exists. If the upload works but the save fails, the photo stays with nothing pointing to it. Clients can't delete receipts, so cleaning these up would need a scheduled function. Replacing or removing a receipt through the app does delete the old file.
 - **Payments are pooled per person.** "What Bayo owes Ada" isn't stored. The limit for a payment is the smaller of what the payer owes and what the receiver is owed overall.
 - **Settle-up is greedy**, not guaranteed minimal (see above).
-- **No email is sent** for invites. You send the link yourself.
+- **No email is sent.** You send invite links yourself. The weekly reminder setting is saved, but nothing sends the email yet: that needs a scheduled function (Blaze) and an email service that works without a verified domain.
 - **Long histories are cut off.**
   - The ledger shows a group's latest 500 expenses and 500 payments, so in a big group its "Total spent" covers only those.
   - Balances are always complete, because they're stored, not added up in the browser.

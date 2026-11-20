@@ -210,6 +210,21 @@ Short entries: what happened, what was tried, what was chosen and why. Newest at
 - `pnpm seed` signs each demo person in and calls `createGroup`, `acceptInvite`, `saveExpense` and `recordPayment`, instead of writing documents with admin access. Slower, but the balances, members and activity are exactly what the app would produce, and a broken function breaks the seed. The printed balances were checked by hand (Lekki: Ada +6,244,141 kobo; Tokyo: Ada +¥37,324; both sum to zero).
 - For the reviewer's "try to read another group", `__splitit.read/write/create/remove` in the dev console use the page's own Firestore client and sign-in, so the rules decide, unlike the Emulator UI, which bypasses them (DEMO.md says so). They are loaded only when `import.meta.env.DEV` is true and are absent from the production build.
 
+### 33. Staying on Spark: an honest preview site, and three small fixes found on the way
+
+- **The live site.** Only the frontend is deployed. A normal build would show a sign-in that either fails (no real Firebase project) or, with Auth and Firestore on Spark, signs people in to an app that can't save anything, because every change goes through a function.
+- Chose a separate Vite mode, `site` (`pnpm build:site`, which Vercel runs):
+  - a notice on every page, linking to the README;
+  - `/auth`, `/app/*` and `/join/*` replaced by a page explaining why;
+  - Firebase fixed to the `demo-` project id, which can't reach any real service, so the site needs no Firebase settings.
+- Checked in a browser: the notice is on every page, the signed-in paths show the explanation, and the page makes no outside requests. The build refuses to run without `VITE_README_URL` rather than shipping a notice with a broken link.
+- **Vercel and pnpm 11.** Vercel only follows `packageManager` with an experimental setting, so `vercel.json` runs install and build through `npx pnpm@11.1.3`.
+- **The 5 MB upload tests** (receipt and avatar) failed once with the default 20 s timeout, during a run that took more than 10 minutes in total. In the next run they passed in seconds. They now get 60 s each. The rule is unchanged.
+- **The seed raced the emulators.** The walkthrough script exposed it:
+  - The functions emulator opens its port before loading the functions, so an early `pnpm seed` got 404s. The seed now waits until `createGroup` answers: a plain GET returns 400 once it is loaded, and 404 before.
+  - After a previous seed, the Firestore emulator answers its first reset with 499 "call already cancelled". The seed retries quietly; four runs in a row and two full walkthroughs then passed.
+  - Vite's `localhost` listens on IPv6 (`::1`) only on this machine, so the walkthrough's "is the app up" check tries both 127.0.0.1 and ::1.
+
 ## The three entries worth reading first
 
 1. **24, proving the transaction is what stops overpayment.** A test that passed with the safeguard removed proved nothing. Taking the transaction out and watching the race tests fail, after making the race real, is what proved it.

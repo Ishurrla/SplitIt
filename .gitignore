@@ -41,3 +41,6 @@ pubsub-debug.log
 
 # Local browser tooling
 .playwright-mcp
+
+# Ids written by pnpm seed for the demo walkthrough
+.demo-ids.json

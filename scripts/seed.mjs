@@ -24,6 +24,7 @@ import {
   terminate,
 } from 'firebase/firestore'
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/functions'
+import { writeFileSync } from 'node:fs'
 
 const PROJECT = 'demo-splitit'
 const HOST = '127.0.0.1'
@@ -48,16 +49,50 @@ async function reachable(name, url) {
   }
 }
 
+/**
+ * The functions emulator opens its port before it has loaded the functions; until then every
+ * call is a 404. Wait (up to 2 minutes) until createGroup exists. A plain GET to a callable that
+ * is loaded answers 400, because a callable only accepts POST.
+ */
+async function functionsLoaded() {
+  const url = `http://${HOST}:${PORTS.functions}/${PROJECT}/${REGION}/createGroup`
+  const deadline = Date.now() + 120_000
+  let said = false
+  for (;;) {
+    const status = await fetch(url).then(
+      (r) => r.status,
+      () => 0,
+    )
+    if (status !== 404 && status !== 0) return
+    if (Date.now() > deadline) {
+      console.error('The functions never loaded. Check the pnpm emulators terminal for errors.')
+      process.exit(1)
+    }
+    if (!said) console.log('Waiting for the functions emulator to load the functions…')
+    said = true
+    await new Promise((r) => setTimeout(r, 1000))
+  }
+}
+
 async function wipe() {
-  const auth = await fetch(
-    `http://${HOST}:${PORTS.auth}/emulator/v1/projects/${PROJECT}/accounts`,
-    { method: 'DELETE' },
-  )
-  const store = await fetch(
-    `http://${HOST}:${PORTS.firestore}/emulator/v1/projects/${PROJECT}/databases/(default)/documents`,
-    { method: 'DELETE' },
-  )
-  if (!auth.ok || !store.ok) throw new Error('Could not clear the emulator data.')
+  const targets = [
+    ['Auth', `http://${HOST}:${PORTS.auth}/emulator/v1/projects/${PROJECT}/accounts`],
+    [
+      'Firestore',
+      `http://${HOST}:${PORTS.firestore}/emulator/v1/projects/${PROJECT}/databases/(default)/documents`,
+    ],
+  ]
+  for (const [name, url] of targets) {
+    // Retried quietly: after a previous seed, the Firestore emulator answers its first reset with
+    // 499 "call already cancelled" (left over from that run's closed connections).
+    for (let attempt = 1; ; attempt++) {
+      const res = await fetch(url, { method: 'DELETE' })
+      if (res.ok) break
+      const detail = `${res.status} ${(await res.text()).slice(0, 200)}`
+      if (attempt === 5) throw new Error(`Could not clear the ${name} emulator: ${detail}`)
+      await new Promise((r) => setTimeout(r, 500 * attempt))
+    }
+  }
 }
 
 // ---------- people ----------
@@ -119,6 +154,7 @@ async function expense(groupId, by, title, amountMinor, splits) {
 await reachable('Auth', `http://${HOST}:${PORTS.auth}/`)
 await reachable('Firestore', `http://${HOST}:${PORTS.firestore}/`)
 await reachable('Functions', `http://${HOST}:${PORTS.functions}/`)
+await functionsLoaded()
 await wipe()
 
 const ada = await person('Ada Okafor', 'ada@example.com', 'NGN')
@@ -162,6 +198,12 @@ const lekkiBalances = named(await balances(lekki))
 const tokyoBalances = named(await balances(tokyo))
 
 await Promise.all(everyone.map((p) => terminate(p.db)))
+
+// For scripts/demo-walkthrough.ps1, which fills these ids into the DEMO.md steps. Git-ignored.
+writeFileSync(
+  new URL('../.demo-ids.json', import.meta.url),
+  JSON.stringify({ lekki, tokyo, ada: ada.uid, bayo: bayo.uid, chi: chi.uid }, null, 2),
+)
 
 console.log('\nSeeded the emulators.\n')
 console.log(`Sign in with email and password (all three use the password "${PASSWORD}"):`)

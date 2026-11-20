@@ -1,0 +1,11 @@
+# Uploaded by `vercel` from this folder. Local settings, test output and emulator data stay here.
+.env
+.env.*
+!.env.example
+.emulator-data
+.playwright-mcp
+dist
+node_modules
+functions/lib
+*.log
+.demo-ids.json
